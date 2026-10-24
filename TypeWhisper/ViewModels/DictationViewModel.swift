@@ -2302,6 +2302,12 @@ final class DictationViewModel: ObservableObject {
         requestUptimeNanoseconds: UInt64,
         mode: DictationMode = .dictation
     ) {
+        // 快捷键服务没有会话时才报告开始；此时仍在录音或准备录音，说明会话来自菜单栏、Raycast 或本机接口，这次按下结束它。
+        if state == .recording || (state == .processing && recordingStartTask != nil) {
+            hotkeyService.treatStartAsStopOfSessionStartedElsewhere()
+            stopDictation()
+            return
+        }
         guard state == .processing || state == .inserting else {
             startRecording(
                 forcedWorkflowId: forcedWorkflowId,
