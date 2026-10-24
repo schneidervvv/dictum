@@ -26,15 +26,17 @@ struct DictumOnboardingView: View {
     @State private var practiceText = ""
     @State private var completedPractice = false
     @ObservedObject private var languages = TranslationLanguageStore.shared
+    @ObservedObject private var sync = ServiceContainer.shared.cloudFolderSyncController
+    @State private var syncOn = true
     @FocusState private var practiceFocused: Bool
 
     private static var initialStep: Int {
 #if DEBUG
         if let index = CommandLine.arguments.firstIndex(of: "--dictum-onboarding-step"),
            CommandLine.arguments.indices.contains(index + 1),
-           let step = Int(CommandLine.arguments[index + 1]), (0...6).contains(step) { return step }
+           let step = Int(CommandLine.arguments[index + 1]), (0..<OnboardingStep.count).contains(step) { return step }
 #endif
-        return UserDefaults.standard.bool(forKey: "dictumPracticeRequested") ? 4 : 0
+        return UserDefaults.standard.bool(forKey: "dictumPracticeRequested") ? OnboardingStep.dictationPractice : OnboardingStep.welcome
     }
 
     static var fnUsage: Int {
@@ -44,26 +46,30 @@ struct DictumOnboardingView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 6) {
-                ForEach(0..<7) { index in Capsule().fill(index == step ? DictumTheme.accent : DictumTheme.textTertiary.opacity(0.4)).frame(width: index == step ? 18 : 6, height: 6) }
+                ForEach(0..<OnboardingStep.count) { index in Capsule().fill(index == step ? DictumTheme.accent : DictumTheme.textTertiary.opacity(0.4)).frame(width: index == step ? 18 : 6, height: 6) }
             }.frame(height: 40)
             VStack(spacing: 16) { content }
                 .padding(.horizontal, 64).padding(.top, 20).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 .id(step).transition(.opacity.combined(with: .offset(x: reduceMotion ? 0 : 14)))
             HStack {
-                if (1..<6).contains(step) { Button { step -= 1 } label: { text("Back") }.buttonStyle(.plain) }
+                if (OnboardingStep.permissions..<OnboardingStep.done).contains(step) { Button { step -= 1 } label: { text("Back") }.buttonStyle(.plain) }
                 Spacer()
                 if step == 4 || step == 5 { Button { step += 1 } label: { text("Skip") }.buttonStyle(.plain) }
                 Button {
-                    if step == 6 {
+                    if step == OnboardingStep.done {
                         HomeViewModel.shared.completeSetupWizard()
                         dismiss()
                         DictumNavigation.shared.open(.home)
+                    } else if step == OnboardingStep.sync {
+                        let choice = syncOn
+                        Task { await syncStep.apply(switchOn: choice) }
+                        step += 1
                     } else { step += 1 }
-                } label: { text(step == 0 ? "Get Started" : step == 6 ? "Start Using dictum" : "Continue") }
+                } label: { text(step == 0 ? "Get Started" : step == OnboardingStep.done ? "Start Using dictum" : "Continue") }
                     .buttonStyle(.borderedProminent).controlSize(.large).disabled(!canContinue)
             }.padding(.horizontal, 24).frame(height: 72)
         }.frame(width: 640, height: 540).background(DictumTheme.windowBackground)
-            .background(OnboardingWindowPolicy(finished: step == 6))
+            .background(OnboardingWindowPolicy(finished: step == OnboardingStep.done))
             .animation(.easeOut(duration: reduceMotion ? 0.15 : 0.35), value: step)
             .task { if step == 0 || step == 3 { await prepareModel() } }
             .task(id: "\(step)-\(devices.selectedDeviceUID ?? "")") {
@@ -75,6 +81,7 @@ struct DictumOnboardingView: View {
                     practiceText = ""
                     completedPractice = false
                 }
+                if new == OnboardingStep.sync { syncOn = syncStep.initialSwitch }
             }
             .onReceive(Timer.publish(every: 0.1, on: .main, in: .common).autoconnect()) { _ in
                 microphone = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
@@ -171,11 +178,44 @@ struct DictumOnboardingView: View {
                     else { Text("Click the language on the voice bar to switch targets", tableName: "DictumTranslation") }
                 } icon: { Image(systemName: "checkmark.circle.fill") }.foregroundStyle(DictumTheme.success)
             }
+        case OnboardingStep.sync:
+            title("Sync your history")
+            text("Your dictations are saved to the dictum folder in iCloud Drive. On another Mac, or after clearing data, you can get them back from there.")
+                .font(.system(size: 14)).foregroundStyle(.secondary).multilineTextAlignment(.center).lineSpacing(5).frame(maxWidth: 430)
+            syncRow
+            VStack(spacing: 0) {
+                text("Only text goes to the sync folder. Recordings stay on this Mac.")
+                text("You can change this later in General → History & Sync.")
+            }.font(.system(size: 12)).foregroundStyle(.secondary).multilineTextAlignment(.center).lineSpacing(4)
         default:
             Image(systemName: "checkmark.circle.fill").font(.system(size: 72)).foregroundStyle(DictumTheme.success).padding(.top, 34)
             title("You're all set")
             shortcuts
         }
+    }
+
+    private var syncStep: OnboardingSyncStep { OnboardingSyncStep(controller: sync) }
+    private static let cloudBlue = Color(red: 0x4B / 255, green: 0x9B / 255, blue: 0xF5 / 255)
+
+    private var syncRow: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "icloud").foregroundStyle(Self.cloudBlue)
+                .frame(width: 32, height: 32).background(DictumTheme.inset, in: RoundedRectangle(cornerRadius: 8))
+            VStack(alignment: .leading, spacing: 4) {
+                text("Sync to iCloud Drive")
+                if syncStep.isAvailable {
+                    Label { Text(verbatim: HistorySyncPresentation.folderDisplay(sync.selectedFolderURL)) } icon: { Image(systemName: "folder").foregroundStyle(Self.cloudBlue) }
+                        .font(.system(size: 11)).foregroundStyle(.secondary)
+                } else {
+                    text("iCloud Drive is off on this Mac. You can choose another folder later in General → History & Sync.")
+                        .font(.system(size: 11)).foregroundStyle(.secondary)
+                }
+            }
+            Spacer()
+            Toggle(isOn: Binding(get: { syncStep.isAvailable && (syncStep.isAlreadyOn || syncOn) }, set: { syncOn = $0 })) { text("Sync to iCloud Drive") }
+                .labelsHidden().toggleStyle(.switch).controlSize(.mini).disabled(!syncStep.switchEnabled)
+        }.padding(14).frame(minHeight: 60).frame(maxWidth: .infinity)
+            .background(DictumTheme.card, in: RoundedRectangle(cornerRadius: 10)).padding(.top, 10)
     }
 
     @ViewBuilder private var translationPractice: some View {
