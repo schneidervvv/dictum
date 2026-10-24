@@ -682,6 +682,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let windowLogger = Logger(subsystem: AppConstants.loggerSubsystem, category: "WindowLifecycle")
     private var pluginScreenshotCaptureController: PluginSettingsScreenshotCaptureController?
     private let finderTranscriptionService = FinderTranscriptionService()
+    private let terminationPreparation = TerminationPreparation()
 
     private var showMenuBarIconPreference: Bool {
         UserDefaults.standard.object(forKey: UserDefaultsKeys.showMenuBarIcon) as? Bool ?? true
@@ -906,6 +907,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Task { await ServiceContainer.shared.cloudFolderSyncController.handleApplicationDidBecomeActive() }
     }
 
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        // exit() 会析构 MLX 的 C++ 全局对象，本地识别仍在运行时会访问已析构的对象而崩溃。
+        terminationPreparation.requestTermination {
+            sender.reply(toApplicationShouldTerminate: true)
+        }
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         if AppConstants.isScreenshotAutomation {
             try? FileManager.default.removeItem(at: AppConstants.appSupportDirectory)
@@ -914,6 +922,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         guard !AppConstants.isRunningTests else { return }
         DictationViewModel._shared?.flushPendingPostInsertionPersistence()
+        // 退出时仍在录音或识别的听写保存为可恢复录音，下次启动后可从菜单栏恢复。
+        ServiceContainer.shared.audioRecordingService.preserveActiveRecoveryRecording()
         ServiceContainer.shared.audioRecordingService.waitForPendingRecoveryPreservation()
         ServiceContainer.shared.textInsertionService.flushPendingClipboardRestore()
         ServiceContainer.shared.snippetService.saveDeferredUsageCounts()
