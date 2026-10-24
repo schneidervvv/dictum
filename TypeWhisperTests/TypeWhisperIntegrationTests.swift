@@ -8612,8 +8612,11 @@ final class TypeWhisperIntegrationTests: XCTestCase {
 
         await stopGate.release()
 
-        try await Task.sleep(for: .milliseconds(3100))
-        for _ in 0..<20 {
+        try await Task.sleep(for: .milliseconds(1000))
+        XCTAssertEqual(MockTranscriptionPlugin.transcribeCallCount, 0, "撤销窗口内不转写")
+
+        try await Task.sleep(for: .milliseconds(2100))
+        for _ in 0..<80 {
             if MockTranscriptionPlugin.transcribeCallCount > 0 || pasteCount > 0 {
                 break
             }
@@ -8623,7 +8626,9 @@ final class TypeWhisperIntegrationTests: XCTestCase {
         let session = try XCTUnwrap(context.dictationViewModel.apiDictationSession(id: sessionID))
         XCTAssertEqual(session.status, .failed)
         XCTAssertNil(session.transcription)
-        XCTAssertEqual(MockTranscriptionPlugin.transcribeCallCount, 0)
+        // 撤销窗口结束后，录音只为已取消的历史记录转写一次，不插入。
+        XCTAssertEqual(MockTranscriptionPlugin.transcribeCallCount, 1)
+        XCTAssertTrue(context.historyService.recentRecords.allSatisfy(\.isCancelled))
         XCTAssertEqual(pasteCount, 0)
     }
 
