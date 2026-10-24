@@ -46,6 +46,7 @@ final class CloudFolderSyncController: ObservableObject {
         automaticICloudAvailableOverride
             ?? (TypeWhisperBuildCapabilities.iCloudSyncEnabled && automaticICloudBridge.isAvailable)
     }
+    private let defaultFolder: URL
     private let historyService: HistoryService?
     let historySyncPreferences: HistorySyncPreferences?
     private var customState: CloudFolderSyncState
@@ -87,8 +88,18 @@ final class CloudFolderSyncController: ObservableObject {
 
     var synchronizedRecordCount: Int { historyService?.recordCount() ?? 0 }
 
+    /// 默认文件夹所在的 iCloud Drive 目录存在时，才能开启到默认文件夹的同步。
+    var isDefaultFolderAvailable: Bool {
+        FileManager.default.fileExists(atPath: defaultFolder.deletingLastPathComponent().path)
+    }
+
+    var isHistorySyncOn: Bool { mode != .off }
+
+    /// 已选过同步文件夹，或默认文件夹可用时，可以开启历史同步。
+    var canEnableHistorySync: Bool { selectedFolderURL != nil || isDefaultFolderAvailable }
+
     func acceptDefaultSync() async {
-        guard FileManager.default.fileExists(atPath: Self.defaultICloudFolder.deletingLastPathComponent().path) else {
+        guard isDefaultFolderAvailable else {
             errorMessage = HistorySyncPresentation.missingFolder
             return
         }
@@ -96,7 +107,19 @@ final class CloudFolderSyncController: ObservableObject {
         defaults.set(true, forKey: "dictum.sync.consent")
         historySyncPreferences?.isEnabled = true
         historySyncPreferences?.isAudioEnabled = false
-        await selectCustomFolder(Self.defaultICloudFolder)
+        await selectCustomFolder(defaultFolder)
+    }
+
+    /// 通用页的开关和上手引导的同步步骤共用：已有同步文件夹时沿用它，没有时用默认文件夹。
+    func enableHistorySync() async {
+        if selectedFolderURL == nil {
+            await acceptDefaultSync()
+        } else {
+            needsSyncConsent = false
+            defaults.set(true, forKey: "dictum.sync.consent")
+            await setHistorySyncEnabled(true)
+            await setMode(.cloudFolder)
+        }
     }
 
     func declineDefaultSync() {
@@ -125,8 +148,10 @@ final class CloudFolderSyncController: ObservableObject {
         historySyncPreferences: HistorySyncPreferences? = nil,
         defaults: UserDefaults = .standard,
         automaticICloudBridge: any PremiumICloudBridging = PremiumICloudBridgeFactory.makeDefault(),
-        automaticICloudAvailable: Bool? = nil
+        automaticICloudAvailable: Bool? = nil,
+        defaultFolder: URL = CloudFolderSyncController.defaultICloudFolder
     ) {
+        self.defaultFolder = defaultFolder
         self.syncStore = syncStore
         self.historyService = historyService
         self.historySyncPreferences = historySyncPreferences
@@ -155,7 +180,7 @@ final class CloudFolderSyncController: ObservableObject {
         restoreSelectedFolder()
         historySyncPreferences?.isAudioEnabled = false
         needsSyncConsent = storedMode == nil && defaults.object(forKey: "dictum.sync.consent") == nil
-            && FileManager.default.fileExists(atPath: Self.defaultICloudFolder.deletingLastPathComponent().path)
+            && isDefaultFolderAvailable
         if mode == .automaticICloud { provider = .iCloudDrive }
         installLocalChangeObserver()
         updateICloudObservation()
