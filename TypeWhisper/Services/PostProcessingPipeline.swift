@@ -20,6 +20,8 @@ struct PostProcessingResult {
 struct PostProcessingFallback: Equatable, Sendable {
     let failedStep: String
     let reason: String
+    /// 失败的 AI 步骤收到的文字，重试时再次发给模型。
+    let llmInput: String
 }
 
 @MainActor
@@ -52,7 +54,7 @@ final class PostProcessingPipeline {
         outputFormat: String? = nil,
         llmStepName: String? = nil,
         normalizeNumbers: Bool? = nil,
-        llmFailureFallbackText: String? = nil,
+        fallsBackOnLLMFailure: Bool = false,
         deferUsageCountSaves: Bool = false
     ) async throws -> PostProcessingResult {
         // Collect plugin processors with their priorities
@@ -65,9 +67,10 @@ final class PostProcessingPipeline {
 
         var result = text
         var appliedSteps: [String] = []
+        var fallback: PostProcessingFallback?
         // Tracks correction usage across the pre- and post-LLM passes so each correction is
         // counted at most once per dictation, and the pre-LLM pass counts only if processing
-        // succeeds (a fallback or cancellation inserts text without its corrections).
+        // completes (a cancellation inserts no text).
         var correctionUsage = CorrectionUsageLedger()
 
         func stepName(for id: Int) -> String {
@@ -117,19 +120,14 @@ final class PostProcessingPipeline {
                         throw CancellationError()
                     }
 
-                    if let llmFailureFallbackText {
-                        logger.warning("Using raw transcription fallback after post-processing step '\(name)' failed")
-                        return PostProcessingResult(
-                            text: llmFailureFallbackText,
-                            appliedSteps: [],
-                            fallback: PostProcessingFallback(
-                                failedStep: name,
-                                reason: error.localizedDescription
-                            )
-                        )
-                    }
-
-                    throw error
+                    guard fallsBackOnLLMFailure else { throw error }
+                    // 后面的文本片段、词典纠正和时间格式照常处理 AI 步骤收到的文字，插入的原文同样经过它们。
+                    logger.warning("Continuing without post-processing step '\(name)' after it failed")
+                    fallback = PostProcessingFallback(
+                        failedStep: name,
+                        reason: error.localizedDescription,
+                        llmInput: before
+                    )
                 }
             }
         }
@@ -152,7 +150,7 @@ final class PostProcessingPipeline {
             ofCorrectionIDs: correctionUsage.uncountedProvisionalIDs,
             deferUsageCountSave: deferUsageCountSaves
         )
-        return PostProcessingResult(text: result, appliedSteps: appliedSteps, fallback: nil)
+        return PostProcessingResult(text: result, appliedSteps: appliedSteps, fallback: fallback)
     }
 
     /// Whether an installed post-processor plugin can run before the LLM step. Its
@@ -178,6 +176,32 @@ final class PostProcessingPipeline {
         // Preparation never commits usage; the final `process` run counts the corrections.
         var correctionUsage = CorrectionUsageLedger()
         for step in steps where step.priority < Self.llmStepPriority {
+            result = applyBuiltInStep(
+                step.id,
+                to: result,
+                context: context,
+                dictationContext: dictationContext,
+                outputFormat: outputFormat,
+                normalizeNumbers: normalizeNumbers,
+                correctionUsage: &correctionUsage
+            )
+        }
+        return result
+    }
+
+    /// 对 `process` 之外得到的模型结果（语音条重试）运行 AI 步骤之后的内置步骤：文本片段、词典纠正和时间格式。
+    /// 与 `textBeforeLLMStep` 相同，不运行插件。
+    func textAfterLLMStep(
+        _ text: String,
+        context: PostProcessingContext,
+        dictationContext: DictationRuntimeContext?,
+        outputFormat: String?,
+        normalizeNumbers: Bool?
+    ) -> String {
+        let steps = orderedSteps(includesLLMStep: true, outputFormat: outputFormat, plugins: [])
+        var result = text
+        var correctionUsage = CorrectionUsageLedger()
+        for step in steps where step.priority > Self.llmStepPriority {
             result = applyBuiltInStep(
                 step.id,
                 to: result,

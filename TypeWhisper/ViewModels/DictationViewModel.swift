@@ -416,6 +416,7 @@ final class DictationViewModel: ObservableObject {
     /// 翻译会话没有得到译文、插入了原话时的原因；会话开始时清除。
     @Published private(set) var translationFailure: String?
     private var polishRetry: (id: UUID, text: String, handler: (String) async throws -> String,
+                              finish: @MainActor (String) -> String,
                               snapshot: DictationUndoService.InsertionSnapshot?, translation: Bool)?
     private var polishRetryTask: Task<Void, Never>?
     @Published private(set) var isModelLoading = false
@@ -3250,13 +3251,13 @@ final class DictationViewModel: ObservableObject {
                     configuredLanguageCandidates: languageCandidates,
                     detectedLanguage: result.detectedLanguage
                 )
-                let polishInput = text
+                let normalizeNumbers = self.effectiveNumberNormalizationOverride
                 let ppResult = try await postProcessingPipeline.process(
                     text: text, context: ppContext, dictationContext: dictationContext, llmHandler: llmHandler,
                     outputFormat: resolvedOutputFormat,
                     llmStepName: llmStepName,
-                    normalizeNumbers: self.effectiveNumberNormalizationOverride,
-                    llmFailureFallbackText: actionPluginId == nil ? text : nil,
+                    normalizeNumbers: normalizeNumbers,
+                    fallsBackOnLLMFailure: actionPluginId == nil,
                     // Snippet and correction usage counters are saved after insertion.
                     deferUsageCountSaves: true
                 )
@@ -3516,7 +3517,13 @@ final class DictationViewModel: ObservableObject {
                         }
                         if llmStepName == "Polish" || llmStepName == "Translation",
                            let failure = postProcessingFallback, let llmHandler {
-                            recordPolishFailure(reason: failure.reason, text: polishInput, handler: llmHandler,
+                            let pipeline = postProcessingPipeline
+                            recordPolishFailure(reason: failure.reason, text: failure.llmInput, handler: llmHandler,
+                                                finish: {
+                                                    pipeline.textAfterLLMStep(
+                                                        $0, context: ppContext, dictationContext: dictationContext,
+                                                        outputFormat: resolvedOutputFormat, normalizeNumbers: normalizeNumbers)
+                                                },
                                                 snapshot: insertionIsVerifiable && dictationUndoService.snapshot?.transcriptionID == transcriptionID
                                                     ? dictationUndoService.snapshot : nil,
                                                 translation: llmStepName == "Translation")
@@ -4725,11 +4732,13 @@ final class DictationViewModel: ObservableObject {
 
     // MARK: - Shared Helpers
 
+    /// `finish` 对模型结果运行 AI 步骤之后的文本片段和词典纠正。
     func recordPolishFailure(reason: String, text: String, handler: @escaping (String) async throws -> String,
+                             finish: @escaping @MainActor (String) -> String,
                              snapshot: DictationUndoService.InsertionSnapshot?, translation: Bool = false) {
         clearPolishFailure()
         polishFailure = reason
-        polishRetry = (UUID(), text, handler, snapshot, translation)
+        polishRetry = (UUID(), text, handler, finish, snapshot, translation)
     }
 
     private func clearPolishFailure() {
@@ -4747,8 +4756,9 @@ final class DictationViewModel: ObservableObject {
             guard let self else { return }
             defer { if polishRetry?.id == retry.id { polishRetryTask = nil } }
             do {
-                let polished = try await retry.handler(retry.text)
+                let modelResult = try await retry.handler(retry.text)
                 guard !Task.isCancelled, polishRetry?.id == retry.id else { return }
+                let polished = retry.finish(modelResult)
                 var replaced = false
                 if let snapshot = retry.snapshot,
                    textInsertionService.captureActiveApp().bundleId == snapshot.applicationBundleIdentifier,
