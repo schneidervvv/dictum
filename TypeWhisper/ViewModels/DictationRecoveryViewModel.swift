@@ -340,6 +340,14 @@ final class DictationRecoveryViewModel: ObservableObject {
                     }
                     return
                 }
+                guard DictationRecoveryRecordingClaims.claim(url) else {
+                    // 取消窗口结束后的后台转写已经把这段录音保存为已取消的记录。
+                    updateRecovery(id: recoveryID) { item in
+                        item.state = .idle
+                    }
+                    updateRecoveryURLs(audioRecordingService.recoveryRecordingURLs)
+                    return
+                }
 
                 usageStatisticsRecorder?.recordTranscription(
                     timestamp: Date(),
@@ -374,6 +382,7 @@ final class DictationRecoveryViewModel: ObservableObject {
                     updateRecovery(id: recoveryID) { item in
                         item.state = .idle
                     }
+                    DictationRecoveryRecordingClaims.release(url)
                 } else {
                     audioRecordingService.discardRecoveryRecording(at: url)
                 }
