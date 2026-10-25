@@ -5,10 +5,10 @@ enum HistorySyncPresentation {
         String(localized: "Can't sync: iCloud Drive folder not found", table: "DictumHistory")
     }
 
-    /// iCloud Drive 里的文件夹显示为 `iCloud Drive › dictum`，其他文件夹显示以 ~ 开头的路径。
-    static func folderDisplay(_ folder: URL?, home: URL = FileManager.default.homeDirectoryForCurrentUser) -> String {
+    /// iCloud Drive 里的文件夹显示为 `iCloud Drive › dictum`，其他文件夹显示以 ~ 开头的路径；没有选择文件夹时显示默认文件夹。
+    static func folderDisplay(_ folder: URL?, home: URL = FileManager.default.homeDirectoryForCurrentUser, dataFolderName: String = AppConstants.appSupportDirectoryName) -> String {
         let iCloudName = String(localized: "iCloud Drive", table: "DictumHistory")
-        guard let folder else { return "\(iCloudName) › dictum" }
+        guard let folder else { return "\(iCloudName) › \(dataFolderName)" }
         let iCloudRoot = home.appendingPathComponent("Library/Mobile Documents/com~apple~CloudDocs", isDirectory: true).standardizedFileURL.pathComponents
         let components = folder.standardizedFileURL.pathComponents
         if components.count > iCloudRoot.count, Array(components.prefix(iCloudRoot.count)) == iCloudRoot {
