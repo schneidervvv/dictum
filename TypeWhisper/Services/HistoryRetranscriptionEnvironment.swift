@@ -57,7 +57,8 @@ enum HistoryRetranscriptionEnvironment {
     }
 
     static func isBackgroundTranscriptionBusy(manager: ModelManagerService, watchFolder: WatchFolderService) -> Bool {
-        watchFolder.currentlyProcessing != nil || manager.hasProtectedEngineUse
+        watchFolder.currentlyProcessing != nil
+            || (manager.hasProtectedEngineUse && HistoryRetranscriptionActivity.yieldingEngineUseCount == 0)
     }
 
     static func isLocal(_ engine: any TranscriptionEnginePlugin) -> Bool {

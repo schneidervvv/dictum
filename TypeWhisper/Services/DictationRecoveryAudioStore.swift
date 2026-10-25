@@ -89,6 +89,21 @@ enum DictationRecoveryAudioCompressor {
     }
 }
 
+/// 一段恢复录音只保存一条历史记录。取消窗口结束后的已取消记录和「听写恢复」里的恢复可能同时转写同一段录音，
+/// 保存前各自认领，先认领的一方保存，另一方放弃结果。
+@MainActor
+enum DictationRecoveryRecordingClaims {
+    private static var claimedPaths = Set<String>()
+
+    static func claim(_ url: URL) -> Bool {
+        claimedPaths.insert(url.standardizedFileURL.path).inserted
+    }
+
+    static func release(_ url: URL) {
+        claimedPaths.remove(url.standardizedFileURL.path)
+    }
+}
+
 /// Persists the active dictation as a temporary 16 kHz mono PCM WAV so the
 /// audio can be recovered after a failure or an apparently successful but incomplete result.
 /// Preserved recordings are transcoded to AAC; a recording stays WAV if that fails.

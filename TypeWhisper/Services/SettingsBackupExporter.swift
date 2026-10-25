@@ -136,6 +136,8 @@ enum SettingsBackupExporter {
         var mode: String? = nil
         var spokenLanguage: String? = nil
         var targetLanguage: String? = nil
+        /// 取消的会话只写 true；旧备份没有它，按未取消读取。
+        var cancelled: Bool? = nil
     }
 
     /// Simple, portable preferences from the General, Dictation, Dictation
@@ -537,7 +539,8 @@ enum SettingsBackupExporter {
                 pipelineSteps: record.pipelineStepList,
                 mode: record.modeRaw,
                 spokenLanguage: record.spokenLanguage,
-                targetLanguage: record.targetLanguage
+                targetLanguage: record.targetLanguage,
+                cancelled: record.isCancelled ? true : nil
             )
         }
 
@@ -953,7 +956,8 @@ enum SettingsBackupExporter {
                 pipelineSteps: entry.pipelineSteps,
                 translation: entry.mode == DictationMode.translation.rawValue
                     ? entry.targetLanguage.map { HistoryTranslationInfo(spokenLanguage: entry.spokenLanguage, targetLanguage: $0) }
-                    : nil
+                    : nil,
+                cancelled: entry.cancelled == true
             )
             // UsageStatisticsService only backfills from history once, at app
             // launch (ServiceContainer), so an import happening mid-session
@@ -964,6 +968,9 @@ enum SettingsBackupExporter {
             // visible in History.
             if inserted {
                 result.historyImported += 1
+            }
+            // 取消的会话没有插入文字，不计入统计。
+            if inserted, entry.cancelled != true {
                 usageStatisticsService.recordTranscription(
                     timestamp: entry.timestamp,
                     wordsCount: DictumWordCount.count(entry.finalText),

@@ -54,6 +54,7 @@ struct UserDataSyncHistoryContentV1: Codable, Equatable, Sendable {
         case mode
         case spokenLanguage
         case targetLanguage
+        case cancelled
     }
 
     let recordID: UUID
@@ -80,6 +81,8 @@ struct UserDataSyncHistoryContentV1: Codable, Equatable, Sendable {
     let mode: String?
     let spokenLanguage: String?
     let targetLanguage: String?
+    /// 取消的会话只写 true；缺少时按未取消读取。
+    let cancelled: Bool?
 
     init(
         recordID: UUID,
@@ -103,11 +106,13 @@ struct UserDataSyncHistoryContentV1: Codable, Equatable, Sendable {
         alignmentResetAt: Date? = nil,
         mode: String? = nil,
         spokenLanguage: String? = nil,
-        targetLanguage: String? = nil
+        targetLanguage: String? = nil,
+        cancelled: Bool? = nil
     ) {
         self.mode = mode
         self.spokenLanguage = spokenLanguage
         self.targetLanguage = targetLanguage
+        self.cancelled = cancelled
         self.recordID = recordID
         self.createdAt = createdAt
         self.updatedAt = updatedAt
@@ -167,6 +172,7 @@ struct UserDataSyncHistoryContentV1: Codable, Equatable, Sendable {
         mode = try container.decodeIfPresent(String.self, forKey: .mode)
         spokenLanguage = try container.decodeIfPresent(String.self, forKey: .spokenLanguage)
         targetLanguage = try container.decodeIfPresent(String.self, forKey: .targetLanguage)
+        cancelled = try container.decodeIfPresent(Bool.self, forKey: .cancelled)
     }
 }
 
