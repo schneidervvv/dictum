@@ -223,6 +223,8 @@ enum UserDataSyncMutation: Equatable, Sendable {
 @MainActor
 protocol UserDataSyncStore: AnyObject, Sendable {
     func snapshot() -> UserDataSyncSnapshot
+    /// 每个集合所在存储文件的创建时间，存储被删除或重建后会更新；无法读取的集合不列出。
+    func storeCreationDates() -> [UserDataSyncCollection: Date]
     func apply(_ mutations: [UserDataSyncMutation]) throws
     @discardableResult
     func observeLocalChanges(_ handler: @escaping @MainActor @Sendable () -> Void) -> UUID

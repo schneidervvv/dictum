@@ -257,6 +257,10 @@ final class SnippetService: ObservableObject {
         }
     }
 
+    var userDataSyncStoreCreatedAt: Date? {
+        modelContainer.flatMap(SwiftDataStoreFactory.storeCreatedAt(of:))
+    }
+
     func userDataSyncSnippets() -> [UserDataSyncSnippet] {
         snippets.map { snippet in
             UserDataSyncSnippet(

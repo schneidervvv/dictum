@@ -225,6 +225,11 @@ final class CloudFolderSyncController: ObservableObject {
         guard newMode != mode, !isSyncing else { return }
         if isConfigured { await syncNow() }
         guard !isSyncing else { return }
+        // 重新开启同步时从文件夹的全部内容开始，关闭期间缺失的条目会回来。
+        if mode == .off, var resumedState = state(for: newMode) {
+            resumedState.needsFullRead = true
+            setState(resumedState, for: newMode)
+        }
         mode = newMode
         if newMode == .automaticICloud { provider = .iCloudDrive }
         if newMode == .cloudFolder, let selectedFolderURL {
@@ -440,6 +445,11 @@ final class CloudFolderSyncController: ObservableObject {
             errorMessage = nil
         }
         selectedFolderURL = url
+        // 关闭状态下选择文件夹等于重新开启同步，从文件夹的全部内容开始。
+        if mode == .off, var resumedState = state(for: .cloudFolder) {
+            resumedState.needsFullRead = true
+            setState(resumedState, for: .cloudFolder)
+        }
         mode = .cloudFolder
         historySyncPreferences?.isEnabled = true
         historySyncPreferences?.isAudioEnabled = false

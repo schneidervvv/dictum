@@ -317,4 +317,13 @@ struct SwiftDataStoreFactory {
         context.autosaveEnabled = true
         return (container, context)
     }
+
+    /// 存储文件的创建时间：文件被删除或因结构不兼容重建后会更新，打开、保存和轻量迁移都保留它。
+    static func storeCreatedAt(of container: ModelContainer) -> Date? {
+        guard let url = container.configurations.first?.url,
+              let attributes = try? FileManager.default.attributesOfItem(atPath: url.path) else {
+            return nil
+        }
+        return attributes[.creationDate] as? Date
+    }
 }

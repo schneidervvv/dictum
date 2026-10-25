@@ -1700,6 +1700,10 @@ final class DictionaryService: ObservableObject {
         }
     }
 
+    var userDataSyncStoreCreatedAt: Date? {
+        modelContainer.flatMap(SwiftDataStoreFactory.storeCreatedAt(of:))
+    }
+
     func userDataSyncEntries(
         excludingTermItemIDs: Set<String> = [],
         excludingCorrectionItemIDs: Set<String> = []

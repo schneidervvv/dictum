@@ -41,6 +41,10 @@ struct CloudFolderSyncState: Codable, Equatable, Sendable {
     var appliedOperationIDs: Set<String>
     var lastSyncAt: Date?
     var historyGeneration: String
+    /// 下次同步重新读取文件夹里的全部操作，包括已经应用过的。
+    var needsFullRead: Bool
+    /// 上次同步结束时各集合存储文件的创建时间（秒），键是 `UserDataSyncCollection` 的 rawValue。旧版本保存的同步状态没有这项记录。
+    var storeCreatedAts: [String: TimeInterval]?
 
     init(
         deviceId: String = UUID().uuidString,
@@ -48,7 +52,9 @@ struct CloudFolderSyncState: Codable, Equatable, Sendable {
         exportedItemVersions: [String: String] = [:],
         appliedOperationIDs: Set<String> = [],
         lastSyncAt: Date? = nil,
-        historyGeneration: String = "history-v1"
+        historyGeneration: String = "history-v1",
+        needsFullRead: Bool = false,
+        storeCreatedAts: [String: TimeInterval]? = nil
     ) {
         self.deviceId = deviceId
         self.knownLocalItemIDs = knownLocalItemIDs
@@ -56,6 +62,8 @@ struct CloudFolderSyncState: Codable, Equatable, Sendable {
         self.appliedOperationIDs = appliedOperationIDs
         self.lastSyncAt = lastSyncAt
         self.historyGeneration = historyGeneration
+        self.needsFullRead = needsFullRead
+        self.storeCreatedAts = storeCreatedAts
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -65,6 +73,8 @@ struct CloudFolderSyncState: Codable, Equatable, Sendable {
         case appliedOperationIDs
         case lastSyncAt
         case historyGeneration
+        case needsFullRead
+        case storeCreatedAts
     }
 
     init(from decoder: Decoder) throws {
@@ -88,6 +98,35 @@ struct CloudFolderSyncState: Codable, Equatable, Sendable {
             String.self,
             forKey: .historyGeneration
         ) ?? "history-v1"
+        needsFullRead = try container.decodeIfPresent(Bool.self, forKey: .needsFullRead) ?? false
+        storeCreatedAts = try container.decodeIfPresent(
+            [String: TimeInterval].self,
+            forKey: .storeCreatedAts
+        )
+    }
+
+    /// 存储文件的创建时间与上次同步记录不同的集合：文件被删除或重建后创建时间会更新。
+    /// 这类集合缺少的条目来自文件重建，本机没有删除它们；旧版本保存的同步状态
+    /// 没有创建时间记录（无法判断重建），当前读不到创建时间的集合不算在内。
+    func restartedCollections(
+        currentDates: [UserDataSyncCollection: Date]
+    ) -> Set<UserDataSyncCollection> {
+        guard let recorded = storeCreatedAts else { return [] }
+        return Set(currentDates.compactMap { collection, createdAt in
+            recorded[collection.rawValue] != createdAt.timeIntervalSince1970 ? collection : nil
+        })
+    }
+
+    /// `needsFullRead` 时身份无法核实的集合：状态里没有它的创建时间记录，
+    /// 或当前读不到它的创建时间，无法确认还是记录中的那个文件，按新建的存储处理。
+    /// 日期一致的集合不在此列，关闭同步期间的本地删除照常传播。
+    func unconfirmedCollections(
+        currentDates: [UserDataSyncCollection: Date]
+    ) -> Set<UserDataSyncCollection> {
+        guard needsFullRead else { return [] }
+        return Set([UserDataSyncCollection.dictionary, .snippets, .history].filter {
+            storeCreatedAts?[$0.rawValue] == nil || currentDates[$0] == nil
+        })
     }
 }
 
@@ -373,7 +412,21 @@ enum CloudFolderSyncEngine {
             throw CloudFolderSyncError.missingStore
         }
 
-        let previousState = state
+        let storeCreatedAts = await MainActor.run { store.storeCreationDates() }
+        let restartedCollections = state.restartedCollections(currentDates: storeCreatedAts)
+        let rereadCollections: Set<UserDataSyncCollection> = state.needsFullRead
+            ? [.dictionary, .snippets, .history]
+            : restartedCollections
+        var restartedState = state
+        // 新建的存储像一台新 Mac 一样从文件夹取回全部条目，不为它从未有过的条目发出删除。
+        // needsFullRead 下身份无法核实的集合同样按新建的存储处理。
+        let newStoreCollections = restartedCollections.union(
+            state.unconfirmedCollections(currentDates: storeCreatedAts)
+        )
+        restartedState.knownLocalItemIDs = restartedState.knownLocalItemIDs.filter {
+            !newStoreCollections.contains(collection(ofStateKey: $0))
+        }
+        let previousState = restartedState
         // Repair modes dropped by a pre-regex Mac before it can republish them as
         // explicit literals. Only already-applied v1 operations and pre-v3 state qualify.
         let migration: (operations: [CloudFolderSyncOperation], rebuildPackage: Bool)
@@ -493,7 +546,11 @@ enum CloudFolderSyncEngine {
                 localRecords: initialRecords,
                 localDeviceId: stateSnapshot.deviceId,
                 historyGeneration: stateSnapshot.historyGeneration,
-                appliedOperationIDs: stateSnapshot.appliedOperationIDs
+                appliedOperationIDs: stateSnapshot.appliedOperationIDs.subtracting(
+                    readResult.operations
+                        .filter { rereadCollections.contains($0.collection) }
+                        .map(\.operationId)
+                )
             )
             return (
                 initialRecords: initialRecords,
@@ -570,6 +627,13 @@ enum CloudFolderSyncEngine {
             state.exportedItemVersions.removeValue(forKey: key)
         }
         state.appliedOperationIDs.formUnion(operations.filter(operationRegexIsSupported).map(\.operationId))
+        state.needsFullRead = false
+        // 记录这次看到的创建时间，本次读不到的集合保留上次记录的时间。
+        var recordedCreatedAts = state.storeCreatedAts ?? [:]
+        for (collection, createdAt) in storeCreatedAts {
+            recordedCreatedAts[collection.rawValue] = createdAt.timeIntervalSince1970
+        }
+        state.storeCreatedAts = recordedCreatedAts
         state.lastSyncAt = now
 
         return CloudFolderSyncResult(
@@ -1286,6 +1350,11 @@ enum CloudFolderSyncEngine {
 
     private static func historyDeleteStateKey(itemID: String) -> String {
         "\(itemID)#delete"
+    }
+
+    private static func collection(ofStateKey key: String) -> UserDataSyncCollection {
+        if key.hasPrefix("history:") { return .history }
+        return key.hasPrefix("snippet:") ? .snippets : .dictionary
     }
 
     private static func shouldApply(
