@@ -439,6 +439,49 @@ final class TextDiffServiceTests: XCTestCase {
         XCTAssertEqual(learned("我们周四讨论新眼项目的进度。", "我们周五讨论星衍项目的进度。"), [])
     }
 
+    func testChineseAutoLearningRejectsEditsSeparatedByUnchangedContent() {
+        let service = TextDiffService()
+
+        // 两处修改只隔一个没改的字（很），片段中间夹着不变的上下文
+        XCTAssertTrue(service.extractHighConfidenceCorrections(
+            original: "他说新眼很好。",
+            edited: "他说星衍很号。"
+        ).isEmpty)
+        // 两处修改隔着标点，标点不能混进词条
+        XCTAssertTrue(service.extractHighConfidenceCorrections(
+            original: "我们讨论新眼，我认为很好。",
+            edited: "我们讨论星衍，他认为很好。"
+        ).isEmpty)
+        // 改正一个词时多打一个字，不把多余的字学进词条
+        XCTAssertTrue(service.extractHighConfidenceCorrections(
+            original: "我们讨论新眼项目。",
+            edited: "我们讨论星衍和项目。"
+        ).isEmpty)
+        // 改正一个词时顺手删掉一个字，同样不学
+        XCTAssertTrue(service.extractHighConfidenceCorrections(
+            original: "我们讨论新眼哦项目。",
+            edited: "我们讨论星衍项目。"
+        ).isEmpty)
+        // 只有一个字不同的同名词照常学（三个字的片段允许中间同字）
+        XCTAssertEqual(service.extractHighConfidenceCorrections(
+            original: "我们把服务部署到酷伯尼特斯。",
+            edited: "我们把服务部署到库伯内特斯。"
+        ).map { "\($0.original) → \($0.replacement)" }, ["酷伯尼 → 库伯内"])
+    }
+
+    func testHistoryEditLearningUsesFragmentRuleWhenOnlyOneSideHasSpaces() {
+        let service = TextDiffService()
+        func learned(_ original: String, _ edited: String) -> [String] {
+            service.extractCorrections(original: original, edited: edited)
+                .map { "\($0.original) → \($0.replacement)" }
+        }
+
+        // 中文历史修改时顺手加了空格，仍按分词器的片段规则学到词
+        XCTAssertEqual(learned("我们讨论新眼项目。", "我们讨论 星衍 项目。"), ["新眼 → 星衍"])
+        // 只删掉一个空格，不把删词和插词配成一对
+        XCTAssertEqual(learned("我在用 Claude 写代码。", "我在用Claude 写代码。"), [])
+    }
+
     func testHighConfidenceExtractionHandlesMixedChineseAndEnglish() {
         let service = TextDiffService()
 
