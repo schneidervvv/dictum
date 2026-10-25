@@ -58,9 +58,9 @@ final class OpenRouterPluginTests: XCTestCase {
         plugin.activate(host: host)
 
         XCTAssertEqual(plugin.selectedModelId, "openai/whisper-1")
-        XCTAssertEqual(plugin.selectedLLMModelId, "openai/gpt-4o")
+        XCTAssertEqual(plugin.selectedLLMModelId, "google/gemma-4-26b-a4b-it:free")
         XCTAssertEqual(host.userDefault(forKey: "selectedModel") as? String, "openai/whisper-1")
-        XCTAssertEqual(host.userDefault(forKey: "selectedLLMModel") as? String, "openai/gpt-4o")
+        XCTAssertEqual(host.userDefault(forKey: "selectedLLMModel") as? String, "google/gemma-4-26b-a4b-it:free")
     }
 
     func testProcessSendsLocalChatRequestAndParsesText() async throws {
@@ -96,7 +96,7 @@ final class OpenRouterPluginTests: XCTestCase {
         XCTAssertEqual(request.timeoutInterval, 30)
 
         let body = try Self.jsonBody(from: request)
-        XCTAssertEqual(body["model"] as? String, "openai/gpt-4o")
+        XCTAssertEqual(body["model"] as? String, "google/gemma-4-26b-a4b-it:free")
         XCTAssertEqual(body["max_tokens"] as? Int, 4096)
         XCTAssertEqual(body["temperature"] as? Double, 0.7)
 
@@ -462,6 +462,160 @@ final class OpenRouterPluginTests: XCTestCase {
 
         XCTAssertEqual(result.text, "first second third")
         XCTAssertEqual(store.sessions.flatMap(\.requestedRequests).count, 3)
+    }
+
+    /// 来自实机保存的 OpenRouter 模型接口响应（/tmp/dictum-p6-live/c9/openrouter-models.json），只留原文条目。
+    private static let sampleModelsResponse = """
+    {
+      "data": [
+        {
+          "id": "moonshotai/kimi-k3.1-pro",
+          "name": "MoonshotAI: Kimi K3.1 Pro",
+          "pricing": { "prompt": "0.000002", "completion": "0.00001" },
+          "architecture": { "modality": "text+image+video->text" }
+        },
+        {
+          "id": "google/gemini-nano-banana-2.1",
+          "name": "Google: Nano Banana 2.1",
+          "pricing": { "prompt": "0.0000005", "completion": "0.0000015" },
+          "architecture": { "modality": "text+image->text+image" }
+        },
+        {
+          "id": "recursive/flint-v1.0:free",
+          "name": "Recursive: Flint (free)",
+          "pricing": { "prompt": "0", "completion": "0" },
+          "architecture": { "modality": "text->text" }
+        },
+        {
+          "id": "nvidia/nemotron-3-ultra-550b-a55b:free",
+          "name": "NVIDIA: Nemotron 3 Ultra (free)",
+          "pricing": { "prompt": "0", "completion": "0" },
+          "architecture": { "modality": "text->text" }
+        },
+        {
+          "id": "google/gemma-4-26b-a4b-it:free",
+          "name": "Google: Gemma 4 26B A4B  (free)",
+          "pricing": { "prompt": "0", "completion": "0" },
+          "architecture": { "modality": "text+image+video->text" }
+        },
+        {
+          "id": "liquid/lfm-2.5-2.6b:free",
+          "name": "LiquidAI: LFM2.5-2.6B (free)",
+          "pricing": { "prompt": "0", "completion": "0" },
+          "architecture": { "modality": "text->text" }
+        },
+        {
+          "id": "deepseek/deepseek-v4.1-flash-1017",
+          "name": "DeepSeek: DeepSeek V4.1 Flash 1017",
+          "pricing": { "prompt": "0.00000015", "completion": "0.0000006" },
+          "architecture": { "modality": "text+image->text" }
+        }
+      ]
+    }
+    """
+
+    func testFetchLLMModelsParsesSavedAPIResponse() async throws {
+        let host = try PluginTestHostServices(secrets: ["api-key": "openrouter-key"])
+        let plugin = OpenRouterPlugin()
+        plugin.activate(host: host)
+
+        let store = PluginHTTPClientSessionStore()
+        PluginHTTPClientTestHarness.configure { _ in
+            store.makeSession(outcomes: [
+                .success(
+                    Data(Self.sampleModelsResponse.utf8),
+                    Self.httpResponse(url: "https://openrouter.ai/api/v1/models", statusCode: 200)
+                ),
+            ])
+        }
+
+        let models = await plugin.fetchLLMModels()
+
+        XCTAssertEqual(models.map(\.id), [
+            "deepseek/deepseek-v4.1-flash-1017",
+            "google/gemma-4-26b-a4b-it:free",
+            "liquid/lfm-2.5-2.6b:free",
+            "moonshotai/kimi-k3.1-pro",
+            "nvidia/nemotron-3-ultra-550b-a55b:free",
+            "recursive/flint-v1.0:free",
+        ])
+        XCTAssertEqual(models.first { $0.id == "moonshotai/kimi-k3.1-pro" }?.promptPrice, "0.000002")
+        XCTAssertTrue(models.contains { $0.id.hasSuffix(":free") })
+    }
+
+    /// AI 模型页通过这个选择子刷新菜单，刷新后菜单列出接口返回的全部文本模型（含 :free）。
+    func testLLMModelMenuRefreshSelectorFetchesAPIList() async throws {
+        let host = try PluginTestHostServices(secrets: ["api-key": "openrouter-key"])
+        let plugin = OpenRouterPlugin()
+        plugin.activate(host: host)
+
+        let store = PluginHTTPClientSessionStore()
+        PluginHTTPClientTestHarness.configure { _ in
+            store.makeSession(outcomes: [
+                .success(
+                    Data(Self.sampleModelsResponse.utf8),
+                    Self.httpResponse(url: "https://openrouter.ai/api/v1/models", statusCode: 200)
+                ),
+            ])
+        }
+
+        let selector = NSSelectorFromString("dictumRefreshLLMModels")
+        XCTAssertTrue(plugin.responds(to: selector))
+        _ = plugin.perform(selector)
+
+        for _ in 0..<200 where plugin.supportedModels.count < 6 {
+            try await Task.sleep(for: .milliseconds(50))
+        }
+
+        XCTAssertEqual(plugin.supportedModels.map(\.id), [
+            "deepseek/deepseek-v4.1-flash-1017",
+            "google/gemma-4-26b-a4b-it:free",
+            "liquid/lfm-2.5-2.6b:free",
+            "moonshotai/kimi-k3.1-pro",
+            "nvidia/nemotron-3-ultra-550b-a55b:free",
+            "recursive/flint-v1.0:free",
+        ])
+        XCTAssertNotNil(host.userDefault(forKey: "fetchedModels") as? Data)
+    }
+
+    /// 所有者没有选过模型时，菜单显示和处理使用的默认是免费模型。
+    func testDefaultLLMModelIsFreeWhenNothingSelected() throws {
+        let host = try PluginTestHostServices()
+        let plugin = OpenRouterPlugin()
+        plugin.activate(host: host)
+
+        let selectable = try XCTUnwrap(plugin as? LLMModelSelectable)
+        let defaultModelId = try XCTUnwrap(selectable.defaultModelId ?? nil)
+        XCTAssertTrue(defaultModelId.hasSuffix(":free"))
+        XCTAssertEqual(plugin.selectedLLMModelId, defaultModelId)
+        XCTAssertTrue((plugin.selectedLLMModelId ?? "").hasSuffix(":free"))
+    }
+
+    /// 已拉取的模型列表里，默认取排序后第一个免费模型。
+    func testDefaultLLMModelPicksFirstFreeFromFetchedList() throws {
+        let fetched = try JSONEncoder().encode([
+            OpenRouterFetchedModel(
+                id: "moonshotai/kimi-k3.1-pro", name: "MoonshotAI: Kimi K3.1 Pro",
+                promptPrice: "0.000002", completionPrice: "0.00001"
+            ),
+            OpenRouterFetchedModel(
+                id: "google/gemma-4-26b-a4b-it:free", name: "Google: Gemma 4 26B A4B (free)",
+                promptPrice: "0", completionPrice: "0"
+            ),
+            OpenRouterFetchedModel(
+                id: "deepseek/deepseek-v4.1-flash-1017", name: "DeepSeek: DeepSeek V4.1 Flash 1017",
+                promptPrice: "0.00000015", completionPrice: "0.0000006"
+            ),
+        ])
+        let host = try PluginTestHostServices(defaults: ["fetchedModels": fetched])
+        let plugin = OpenRouterPlugin()
+        plugin.activate(host: host)
+
+        XCTAssertEqual(plugin.supportedModels.map(\.id), [
+            "moonshotai/kimi-k3.1-pro", "google/gemma-4-26b-a4b-it:free", "deepseek/deepseek-v4.1-flash-1017",
+        ])
+        XCTAssertEqual(plugin.selectedLLMModelId, "google/gemma-4-26b-a4b-it:free")
+        XCTAssertEqual(host.userDefault(forKey: "selectedLLMModel") as? String, "google/gemma-4-26b-a4b-it:free")
     }
 
     func testTranscribeSplitsLongRecordingsIntoFiveMinuteRequests() async throws {

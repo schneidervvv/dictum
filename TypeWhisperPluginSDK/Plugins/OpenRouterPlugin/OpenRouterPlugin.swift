@@ -24,6 +24,8 @@ final class OpenRouterPlugin: NSObject,
     fileprivate var _llmTemperatureValue: Double = 0.3
     fileprivate var _fetchedLLMModels: [OpenRouterFetchedModel] = []
     fileprivate var _fetchedTranscriptionModels: [OpenRouterFetchedModel] = []
+    /// 用户在 AI 模型页手输的模型 id，可能不在接口返回的列表里，需要单独持久化保留。
+    fileprivate var _customLLMModelIds: [String] = []
 
     private static let chatRequestTimeout: TimeInterval = 30
     private static let transcriptionRequestTimeout: TimeInterval = 120
@@ -36,6 +38,7 @@ final class OpenRouterPlugin: NSObject,
         static let llmTemperatureValue = "llmTemperatureValue"
         static let fetchedModels = "fetchedModels"
         static let fetchedTranscriptionModels = "fetchedTranscriptionModels"
+        static let customLLMModels = "customLLMModels"
     }
 
     required override init() {
@@ -53,6 +56,9 @@ final class OpenRouterPlugin: NSObject,
            let models = try? JSONDecoder().decode([OpenRouterFetchedModel].self, from: data) {
             _fetchedTranscriptionModels = models
         }
+        if let customIds = host.userDefault(forKey: Self.StorageKeys.customLLMModels) as? [String] {
+            _customLLMModelIds = customIds
+        }
         _selectedModelId = Self.resolvedStoredModelId(
             host.userDefault(forKey: Self.StorageKeys.selectedModel) as? String,
             availableModels: transcriptionModels,
@@ -62,6 +68,7 @@ final class OpenRouterPlugin: NSObject,
         _selectedLLMModelId = Self.resolvedStoredModelId(
             host.userDefault(forKey: Self.StorageKeys.selectedLLMModel) as? String,
             availableModels: supportedModels,
+            preferredDefaultId: Self.preferredLLMModelId(from: supportedModels),
             storageKey: Self.StorageKeys.selectedLLMModel,
             host: host
         )
@@ -74,13 +81,14 @@ final class OpenRouterPlugin: NSObject,
     private static func resolvedStoredModelId(
         _ storedModelId: String?,
         availableModels: [PluginModelInfo],
+        preferredDefaultId: String? = nil,
         storageKey: String,
         host: HostServices
     ) -> String? {
         let trimmedModelId = storedModelId?.trimmingCharacters(in: .whitespacesAndNewlines)
         let selectedModelId = trimmedModelId.flatMap { modelId in
             availableModels.contains(where: { $0.id == modelId }) ? modelId : nil
-        } ?? availableModels.first?.id
+        } ?? preferredDefaultId ?? availableModels.first?.id
 
         if selectedModelId != storedModelId {
             host.setUserDefault(selectedModelId, forKey: storageKey)
@@ -348,18 +356,26 @@ final class OpenRouterPlugin: NSObject,
 
     var isAvailable: Bool { isConfigured }
 
+    // 拉取接口失败前的兜底菜单只列免费模型：所有者没选过时默认也不能落到付费模型上。
     fileprivate static let fallbackLLMModels: [OpenRouterFetchedModel] = [
-        OpenRouterFetchedModel(id: "openai/gpt-4o", name: "OpenAI: GPT-4o", promptPrice: "0", completionPrice: "0"),
-        OpenRouterFetchedModel(id: "anthropic/claude-sonnet-4", name: "Anthropic: Claude Sonnet 4", promptPrice: "0", completionPrice: "0"),
-        OpenRouterFetchedModel(id: "google/gemini-2.5-flash-preview", name: "Google: Gemini 2.5 Flash", promptPrice: "0", completionPrice: "0"),
-        OpenRouterFetchedModel(id: "meta-llama/llama-3.3-70b-instruct", name: "Meta: Llama 3.3 70B", promptPrice: "0", completionPrice: "0"),
+        OpenRouterFetchedModel(id: "google/gemma-4-26b-a4b-it:free", name: "Google: Gemma 4 26B A4B (free)", promptPrice: "0", completionPrice: "0"),
+        OpenRouterFetchedModel(id: "nvidia/nemotron-3-super-120b-a12b:free", name: "NVIDIA: Nemotron 3 Super (free)", promptPrice: "0", completionPrice: "0"),
+        OpenRouterFetchedModel(id: "liquid/lfm-2.5-2.6b:free", name: "LiquidAI: LFM2.5-2.6B (free)", promptPrice: "0", completionPrice: "0"),
+        OpenRouterFetchedModel(id: "recursive/flint-v1.0:free", name: "Recursive: Flint (free)", promptPrice: "0", completionPrice: "0"),
     ]
 
     var supportedModels: [PluginModelInfo] {
         let models = _fetchedLLMModels.isEmpty ? Self.fallbackLLMModels : _fetchedLLMModels
-        return models.map {
-            PluginModelInfo(id: $0.id, displayName: $0.name)
+        var infos = models.map { PluginModelInfo(id: $0.id, displayName: $0.name) }
+        for id in _customLLMModelIds where !infos.contains(where: { $0.id == id }) {
+            infos.append(PluginModelInfo(id: id, displayName: id))
         }
+        return infos
+    }
+
+    /// 没有明确选择时的推荐模型：优先列表里第一个免费模型。
+    private static func preferredLLMModelId(from models: [PluginModelInfo]) -> String? {
+        models.first { $0.id.hasSuffix(":free") }?.id ?? models.first?.id
     }
 
     func process(systemPrompt: String, userText: String, model: String?) async throws -> String {
@@ -401,6 +417,31 @@ final class OpenRouterPlugin: NSObject,
 
     var selectedLLMModelId: String? { _selectedLLMModelId }
     @objc var preferredModelId: String? { _selectedLLMModelId }
+    @objc var defaultModelId: String? { Self.preferredLLMModelId(from: supportedModels) }
+
+    // AI 模型页通过这个选择子同步模型选择。接口列表里没有的手输 id 记入
+    // 自定义列表，这样重启后它仍在可解析的模型集合里。
+    @objc func dictumSelectLLMModel(_ modelId: String) {
+        let trimmed = modelId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        let listed = _fetchedLLMModels.contains(where: { $0.id == trimmed })
+            || Self.fallbackLLMModels.contains(where: { $0.id == trimmed })
+        if !listed, !_customLLMModelIds.contains(trimmed) {
+            _customLLMModelIds.append(trimmed)
+            host?.setUserDefault(_customLLMModelIds, forKey: Self.StorageKeys.customLLMModels)
+            host?.notifyCapabilitiesChanged()
+        }
+        selectLLMModel(trimmed)
+    }
+
+    // AI 模型页通过这个选择子刷新模型菜单。
+    @objc func dictumRefreshLLMModels() {
+        Task { @MainActor in
+            let models = await self.fetchLLMModels()
+            guard !models.isEmpty else { return }
+            self.setFetchedLLMModels(models)
+        }
+    }
     var llmTemperatureMode: PluginLLMTemperatureMode {
         PluginLLMTemperatureMode(rawValue: _llmTemperatureModeRaw) ?? .providerDefault
     }
@@ -544,6 +585,15 @@ final class OpenRouterPlugin: NSObject,
         _fetchedLLMModels = models
         if let data = try? JSONEncoder().encode(models) {
             host?.setUserDefault(data, forKey: Self.StorageKeys.fetchedModels)
+        }
+        if let host {
+            _selectedLLMModelId = Self.resolvedStoredModelId(
+                _selectedLLMModelId,
+                availableModels: supportedModels,
+                preferredDefaultId: Self.preferredLLMModelId(from: supportedModels),
+                storageKey: Self.StorageKeys.selectedLLMModel,
+                host: host
+            )
         }
         host?.notifyCapabilitiesChanged()
     }
