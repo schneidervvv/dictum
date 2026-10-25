@@ -21,6 +21,8 @@ final class VoiceBarPresentation: ObservableObject {
     private(set) var isActive = false
     @Published var text = ""
     @Published var tentativeText = ""
+    /// 需要按两次 Esc 取消时，第一次按下后的提示。
+    @Published var showsCancelHint = false
     @Published var duration: TimeInterval = 0
     @Published var levels = Array(repeating: Float.zero, count: 26)
     private var lastActivity: DictationViewModel.State = .idle
@@ -110,6 +112,8 @@ final class VoiceBarPresentation: ObservableObject {
             feedbackCaptured = false
             lastModelNoticeAttempt = vm.modelNoticeAttempt
         }
+        let cancelHint = vm.cancelWarningMessage != nil
+        if showsCancelHint != cancelHint { showsCancelHint = cancelHint }
         var input = VoiceBarState.Input()
         input.confirmedText = vm.partialText
         input.tentativeText = vm.streamingPreview.tentativeTail
@@ -521,7 +525,7 @@ struct VoiceBarView: View {
         case .preparing:
             ProgressView().controlSize(.small)
             label("Getting ready")
-            waveform
+            waveformOrCancelHint
             Text(verbatim: timerText).font(.system(size: 13, design: .rounded)).lineLimit(1).fixedSize().foregroundStyle(.white.opacity(0.58))
             cancel
         case .listening, .listeningWithText, .translating, .targetMenu, .countdown:
@@ -529,7 +533,7 @@ struct VoiceBarView: View {
             else if case .countdown(let seconds) = model.state {
                 Circle().trim(from: 0, to: Double(seconds) / 60).stroke(DictumTheme.warning, lineWidth: 2).rotationEffect(.degrees(-90)).frame(width: 18, height: 18)
             } else { liveDot }
-            waveform
+            waveformOrCancelHint
             Text(verbatim: timerText).font(.system(size: 13, design: .rounded)).monospacedDigit().lineLimit(1).fixedSize().foregroundStyle(timerColor)
             cancel
             Button { _ = DictationViewModel.shared.apiStopRecording() } label: {
@@ -546,6 +550,7 @@ struct VoiceBarView: View {
             }.fixedSize()
             label(translating ? "Translating" : "Polishing")
             Spacer()
+            if model.showsCancelHint { cancelHint }
             cancel
         case .inserted(let count):
             Image(systemName: "checkmark.circle.fill").foregroundStyle(DictumTheme.success)
@@ -619,6 +624,18 @@ struct VoiceBarView: View {
                 Capsule().fill(model.state == .translating || model.state == .targetMenu ? Color(red: 0.89, green: 0.82, blue: 1) : .white.opacity(0.88)).frame(width: 2.5, height: reduceMotion ? 8 : CGFloat(3 + min(1, max(0, model.levels[index])) * 19))
             }
         }.frame(height: 22).mask(LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .white, location: 0.22), .init(color: .white, location: 1)], startPoint: .leading, endPoint: .trailing)).accessibilityHidden(true)
+    }
+    private var cancelHint: some View {
+        Text("Press esc again to cancel", tableName: "DictumHome")
+            .font(.system(size: 12.5)).foregroundStyle(.white.opacity(0.85)).lineLimit(1).minimumScaleFactor(0.8)
+    }
+    /// 提示占用波形的位置（127.5pt 宽），语音条的宽度不变。
+    @ViewBuilder private var waveformOrCancelHint: some View {
+        if model.showsCancelHint {
+            cancelHint.frame(width: 127.5, height: 22, alignment: .leading)
+        } else {
+            waveform
+        }
     }
     private var liveDot: some View {
         TimelineView(.animation(minimumInterval: 0.055, paused: reduceMotion)) { timeline in

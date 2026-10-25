@@ -160,7 +160,15 @@ final class DictationViewModelIndicatorSettingsTests: XCTestCase {
         XCTAssertTrue(DictationViewModel.loadTranscribeShortQuietClipsAggressively(defaults: defaults))
     }
 
-    func testCancellationBehaviorDefaultsToDoubleEscape() {
+    func testCancellationBehaviorDefaultsToSingleEscape() {
+        XCTAssertEqual(DictationViewModel.loadCancellationBehavior(defaults: defaults), .singleEscape)
+    }
+
+    func testCancellationBehaviorKeepsAChoiceTheOwnerSaved() {
+        DictationViewModel.persistCancellationBehavior(.doubleEscape, defaults: defaults)
+        XCTAssertEqual(DictationViewModel.loadCancellationBehavior(defaults: defaults), .doubleEscape)
+        defaults.removeObject(forKey: UserDefaultsKeys.cancellationBehavior)
+        defaults.set(true, forKey: UserDefaultsKeys.requireSecondEscapeToCancelRecording)
         XCTAssertEqual(DictationViewModel.loadCancellationBehavior(defaults: defaults), .doubleEscape)
     }
 
@@ -181,9 +189,9 @@ final class DictationViewModelIndicatorSettingsTests: XCTestCase {
 
     func testInvalidCancellationBehaviorFallsBackToLegacyOrDefault() {
         defaults.set("unknown", forKey: UserDefaultsKeys.cancellationBehavior)
-        XCTAssertEqual(DictationViewModel.loadCancellationBehavior(defaults: defaults), .doubleEscape)
-        defaults.set(false, forKey: UserDefaultsKeys.requireSecondEscapeToCancelRecording)
         XCTAssertEqual(DictationViewModel.loadCancellationBehavior(defaults: defaults), .singleEscape)
+        defaults.set(true, forKey: UserDefaultsKeys.requireSecondEscapeToCancelRecording)
+        XCTAssertEqual(DictationViewModel.loadCancellationBehavior(defaults: defaults), .doubleEscape)
     }
 
     func testMicrophoneBoostDefaultsToDisabled() {
