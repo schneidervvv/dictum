@@ -7,13 +7,19 @@ import XCTest
 /// 识别引擎和 AI 供应商是测试替身，文本插入走私有剪贴板，快捷键只处理测试送入的事件，不产生全局输入。
 @MainActor
 final class DictationSessionFixture {
-    final class Engine: NSObject, TranscriptionEnginePlugin, @unchecked Sendable {
+    /// 识别像 Qwen3 一样经过识别门，同一时间只运行一次；`holdsLongRecordings` 打开时，长于 2 秒的录音一直占着识别门，
+    /// 直到测试关闭它或这次识别被取消。
+    final class Engine: NSObject, TranscriptionEnginePlugin, PluginLocalInferenceGateProviding, @unchecked Sendable {
         static var pluginId: String { "com.dictum.test.session.engine" }
         static var pluginName: String { "Session Test Engine" }
+        let localInferenceGate = PluginLocalInferenceGate()
+        static let longRecordingSampleCount = 2 * Int(AudioRecordingService.targetSampleRate)
         private let lock = NSLock()
         private var _text = "clawed code is ready"
         private var _failure: Error?
         private var _transcribeCount = 0
+        private var _transcribedSampleCounts: [Int] = []
+        private var _holdsLongRecordings = false
         var text: String {
             get { lock.withLock { _text } }
             set { lock.withLock { _text = newValue } }
@@ -22,7 +28,13 @@ final class DictationSessionFixture {
             get { lock.withLock { _failure } }
             set { lock.withLock { _failure = newValue } }
         }
+        var holdsLongRecordings: Bool {
+            get { lock.withLock { _holdsLongRecordings } }
+            set { lock.withLock { _holdsLongRecordings = newValue } }
+        }
         var transcribeCount: Int { lock.withLock { _transcribeCount } }
+        /// 每次识别收到的采样数，按开始识别的顺序。
+        var transcribedSampleCounts: [Int] { lock.withLock { _transcribedSampleCounts } }
         required override init() {}
         func activate(host: HostServices) {}
         func deactivate() {}
@@ -35,12 +47,29 @@ final class DictationSessionFixture {
         var supportsTranslation: Bool { false }
         var supportedLanguages: [String] { ["zh", "en", "ja"] }
         func transcribe(audio: AudioData, language: String?, translate: Bool, prompt: String?) async throws -> PluginTranscriptionResult {
-            let (text, failure) = lock.withLock { () -> (String, Error?) in
-                _transcribeCount += 1
-                return (_text, _failure)
+            try await localInferenceGate.withLock { [self] in
+                let (text, failure) = lock.withLock { () -> (String, Error?) in
+                    _transcribeCount += 1
+                    _transcribedSampleCounts.append(audio.samples.count)
+                    return (_text, _failure)
+                }
+                while holdsLongRecordings, audio.samples.count > Self.longRecordingSampleCount {
+                    try await Task.sleep(for: .milliseconds(20))
+                }
+                if let failure { throw failure }
+                return PluginTranscriptionResult(text: text, detectedLanguage: language)
             }
-            if let failure { throw failure }
-            return PluginTranscriptionResult(text: text, detectedLanguage: language)
+        }
+    }
+
+    /// 录音器停止时交出的录音。
+    final class RecordedAudio: @unchecked Sendable {
+        private let lock = NSLock()
+        private var _samples: [Float]
+        init(_ samples: [Float]) { _samples = samples }
+        var samples: [Float] {
+            get { lock.withLock { _samples } }
+            set { lock.withLock { _samples = newValue } }
         }
     }
 
@@ -93,8 +122,11 @@ final class DictationSessionFixture {
     let hotkeys: HotkeyService
     let recorder: AudioRecordingService
     let recoveryStore: DictationRecoveryAudioStore
+    let recent: RecentTranscriptionStore
     let pasteboard: NSPasteboard
     let samples = Array(repeating: Float(0.25), count: Int(AudioRecordingService.targetSampleRate))
+    /// 下一次停止录音时交出的录音，默认是 1 秒的 `samples`。
+    let recorded: RecordedAudio
     private let retained: [AnyObject]
 
     init(directory: URL, defaultsSuite suite: String) throws {
@@ -120,8 +152,8 @@ final class DictationSessionFixture {
         recorder.hasMicrophonePermissionOverride = true
         recorder.inputAvailabilityOverride = { _ in true }
         recorder.startRecordingOverride = {}
-        let samples = self.samples
-        recorder.stopRecordingOverride = { _ in samples }
+        let recorded = RecordedAudio(samples)
+        recorder.stopRecordingOverride = { _ in recorded.samples }
 
         let insertion = TextInsertionService()
         let pasteboard = NSPasteboard.withUniqueName()
@@ -144,6 +176,7 @@ final class DictationSessionFixture {
         hotkeys.modifierFlagsStateProvider = { [] }
 
         let history = HistoryService(appSupportDirectory: directory)
+        let recent = RecentTranscriptionStore()
         let dictionary = DictionaryService(appSupportDirectory: directory)
         let snippets = SnippetService(appSupportDirectory: directory)
         let settings = SettingsViewModel(modelManager: modelManager)
@@ -153,7 +186,7 @@ final class DictationSessionFixture {
         let media = MediaPlaybackService(startListening: false)
         let model = DictationViewModel(
             audioRecordingService: recorder, textInsertionService: insertion, hotkeyService: hotkeys, modelManager: modelManager,
-            settingsViewModel: settings, historyService: history, recentTranscriptionStore: RecentTranscriptionStore(),
+            settingsViewModel: settings, historyService: history, recentTranscriptionStore: recent,
             profileService: ProfileService(appSupportDirectory: directory), workflowService: WorkflowService(appSupportDirectory: directory),
             translationService: nil, audioDuckingService: AudioDuckingService(), dictionaryService: dictionary,
             targetAppCorrectionLearningService: TargetAppCorrectionLearningService(
@@ -183,6 +216,8 @@ final class DictationSessionFixture {
         self.recorder = recorder
         self.recoveryStore = recoveryStore
         self.pasteboard = pasteboard
+        self.recent = recent
+        self.recorded = recorded
         retained = [insertion, modelManager, settings, processing, sounds, media]
     }
 
@@ -219,6 +254,8 @@ final class DictationSessionFixture {
     static let fnKey: CGKeyCode = 63
     static let leftShift: CGKeyCode = 0x38
     static let deviceLeftShift: UInt64 = 0x2
+    static let rightOption: CGKeyCode = 0x3D
+    static let deviceRightOption: UInt64 = 0x40
 }
 
 /// 每个测试使用自己的临时文件夹和偏好设置套件，结束时恢复改过的标准偏好设置。

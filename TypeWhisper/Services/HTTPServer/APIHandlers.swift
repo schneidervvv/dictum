@@ -1048,6 +1048,8 @@ final class APIHandlers: @unchecked Sendable {
             let speakers: [SpeakerEntry]?
             /// Only with `include=speaker_segments`.
             let speaker_segments: [SpeakerSegmentEntry]?
+            /// 按 Esc 取消、没有插入的录音为 `true`，其他记录没有这个字段。
+            let cancelled: Bool?
         }
 
 
@@ -1098,7 +1100,8 @@ final class APIHandlers: @unchecked Sendable {
                     ? transcript?.segments.map {
                         SpeakerSegmentEntry(start: $0.start, end: $0.end, speaker: $0.speakerID, text: $0.text)
                     }
-                    : nil
+                    : nil,
+                cancelled: record.isCancelled ? true : nil
             )
         }
 

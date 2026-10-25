@@ -2234,6 +2234,50 @@ final class TypeWhisperIntegrationTests: XCTestCase {
         XCTAssertEqual(invalidBody.status, 400)
     }
 
+    /// 按 Esc 取消的记录带 `cancelled: true`，Raycast 据此跳过它；其他记录没有这个字段。
+    func testHistoryAPIMarksCancelledRecords() async throws {
+        let appSupportDirectory = try TestSupport.makeTemporaryDirectory()
+        var context: APIContext?
+        defer {
+            context = nil
+            TestSupport.remove(appSupportDirectory)
+        }
+
+        context = await MainActor.run { () -> APIContext in
+            let context = Self.makeAPIContext(appSupportDirectory: appSupportDirectory)
+            context.historyService.addRecord(
+                timestamp: Date(timeIntervalSinceNow: -60),
+                rawText: "Inserted dictation",
+                finalText: "Inserted dictation",
+                appName: nil,
+                appBundleIdentifier: nil,
+                durationSeconds: 1,
+                language: "en",
+                engineUsed: "test"
+            )
+            context.historyService.addRecord(
+                rawText: "Cancelled dictation",
+                finalText: "Cancelled dictation",
+                appName: nil,
+                appBundleIdentifier: nil,
+                durationSeconds: 1,
+                language: "en",
+                engineUsed: "test",
+                cancelled: true
+            )
+            return context
+        }
+        let router = try XCTUnwrap(context?.router)
+
+        let response = try Self.jsonObject(
+            await router.route(HTTPRequest(method: "GET", path: "/v1/history", queryParams: [:], headers: [:], body: Data()))
+        )
+        let entries = try XCTUnwrap(response["entries"] as? [[String: Any]])
+        XCTAssertEqual(entries.map { $0["text"] as? String }, ["Cancelled dictation", "Inserted dictation"])
+        XCTAssertEqual(entries[0]["cancelled"] as? Bool, true)
+        XCTAssertNil(entries[1]["cancelled"])
+    }
+
     func testHistoryAPIListsSpeakersAndSegmentsOnRequest() async throws {
         let appSupportDirectory = try TestSupport.makeTemporaryDirectory()
         let recordingID = UUID()
@@ -8615,20 +8659,17 @@ final class TypeWhisperIntegrationTests: XCTestCase {
         try await Task.sleep(for: .milliseconds(1000))
         XCTAssertEqual(MockTranscriptionPlugin.transcribeCallCount, 0, "撤销窗口内不转写")
 
-        try await Task.sleep(for: .milliseconds(2100))
-        for _ in 0..<80 {
-            if MockTranscriptionPlugin.transcribeCallCount > 0 || pasteCount > 0 {
-                break
-            }
+        // 撤销窗口结束后，录音只为已取消的历史记录转写一次，不插入；等记录保存后再检查。
+        for _ in 0..<200 where context.historyService.recentRecords.isEmpty {
             try? await Task.sleep(for: .milliseconds(25))
         }
 
         let session = try XCTUnwrap(context.dictationViewModel.apiDictationSession(id: sessionID))
         XCTAssertEqual(session.status, .failed)
         XCTAssertNil(session.transcription)
-        // 撤销窗口结束后，录音只为已取消的历史记录转写一次，不插入。
         XCTAssertEqual(MockTranscriptionPlugin.transcribeCallCount, 1)
-        XCTAssertTrue(context.historyService.recentRecords.allSatisfy(\.isCancelled))
+        XCTAssertEqual(context.historyService.recentRecords.count, 1)
+        XCTAssertEqual(context.historyService.recentRecords.first?.isCancelled, true)
         XCTAssertEqual(pasteCount, 0)
     }
 
