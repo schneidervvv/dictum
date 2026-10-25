@@ -3205,6 +3205,9 @@ final class DictationViewModel: ObservableObject {
                     return
                 }
 
+                // 语音条的润色中、翻译中状态显示最终识别文字，替换录音时的预览。
+                partialText = text
+
                 let actionPluginId = self.effectiveActionPluginId
                 // An accepted physical submit survives a later browser URL workflow match.
                 let autoEnterMode: WorkflowAutoEnterMode = submitRequested ? .duringDictation : self.effectiveAutoEnterMode

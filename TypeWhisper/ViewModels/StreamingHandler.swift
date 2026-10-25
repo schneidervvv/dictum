@@ -47,6 +47,9 @@ final class StreamingHandler: @unchecked Sendable {
         /// Advances on every reset, so a replaced session's late append failure is
         /// not attributed to the session that follows it.
         var sessionGeneration: UInt64 = 0
+        /// 录音停止后，仍在运行的预览发来的文字不再交给界面：最终识别文字会替换预览，
+        /// 迟到的预览文字接在后面会让同一句话出现两遍。
+        var previewDisplayClosed = false
     }
 
     private static let liveSessionPollInterval: Duration = .milliseconds(350)
@@ -159,6 +162,7 @@ final class StreamingHandler: @unchecked Sendable {
         stateCheck: @escaping @MainActor @Sendable () -> Bool
     ) {
         let pendingStopTask = stop()
+        sharedState.withLock { $0.previewDisplayClosed = false }
 
         guard allowLiveTranscription else {
             logger.info("Live transcript preview skipped: disabled")
@@ -260,6 +264,7 @@ final class StreamingHandler: @unchecked Sendable {
         let finishStart = CFAbsoluteTimeGetCurrent()
         func elapsedMs() -> String { String(format: "%.0f", (CFAbsoluteTimeGetCurrent() - finishStart) * 1000) }
 
+        closePreviewDisplay()
         let previewTask = streamingTask
         streamingTask = nil
         previewTask?.cancel()
@@ -411,6 +416,7 @@ final class StreamingHandler: @unchecked Sendable {
     @MainActor
     @discardableResult
     func stop() -> Task<Void, Never>? {
+        closePreviewDisplay()
         let previewTask = streamingTask
         streamingTask = nil
         previewTask?.cancel()
@@ -446,6 +452,10 @@ final class StreamingHandler: @unchecked Sendable {
 
         clearStreamingState(notifyStreamingStopped: true)
         return stopTask
+    }
+
+    private func closePreviewDisplay() {
+        sharedState.withLock { $0.previewDisplayClosed = true }
     }
 
     private func claimLiveSessionHandleForFinish() -> ModelManagerService.LiveTranscriptionSessionHandle? {
@@ -648,9 +658,15 @@ final class StreamingHandler: @unchecked Sendable {
 
         let split = Preview.comparing(previous: confirmed, current: stable)
         previewState.withLock { $0 = split }
+        let sessionGeneration = sharedState.withLock { $0.sessionGeneration }
         Task { @MainActor [weak self] in
-            self?.onPreviewUpdate?(split)
-            self?.onPartialTextUpdate?(stable)
+            guard let self else { return }
+            let displayOpen = self.sharedState.withLock {
+                $0.sessionGeneration == sessionGeneration && !$0.previewDisplayClosed
+            }
+            guard displayOpen else { return }
+            self.onPreviewUpdate?(split)
+            self.onPartialTextUpdate?(stable)
         }
         return stable
     }
