@@ -14830,7 +14830,7 @@
     },
     "Cloud provider not configured. Please set an API key." : {
       "localizations" : {
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "云端识别供应商未配置，请先设置 API 密钥。" } }
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "云端识别服务商未配置，请先设置 API 密钥。" } }
       }
     },
     "Cloud-based transcription. Requires a free API key." : {
@@ -18058,11 +18058,6 @@
             "value" : "输入许可证密钥"
           }
         }
-      }
-    },
-    "Enter submission is unavailable. Check Accessibility access and restart dictum, or choose another Enter option." : {
-      "localizations" : {
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法使用 Enter 发送。请检查辅助功能权限并重启 dictum，或选择其他 Enter 选项。" } }
       }
     },
     "entries" : {
@@ -26882,7 +26877,7 @@
     },
     "Primary transcription failed: %@. Recovery fallback failed: %@" : {
       "localizations" : {
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "主识别失败：%@。恢复识别也失败：%@" } }
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "主识别失败：%@，恢复识别也失败：%@" } }
       }
     },
     "preset.actionItems" : {
@@ -28189,7 +28184,7 @@
     },
     "Rate limit or quota exceeded. Check your provider's usage limits and credit balance, or wait and try again." : {
       "localizations" : {
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "触发限额或额度已用完，请检查供应商的用量限制和余额，或稍后再试。" } }
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请求过于频繁或额度已用完，请检查服务商的用量限制和余额，或稍后再试。" } }
       }
     },
     "Raw transcript restored." : {
@@ -34809,7 +34804,7 @@
     },
     "The inserted text was edited, so nothing was changed." : {
       "localizations" : {
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "插入的文字已被修改，未做任何修改。" } }
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "插入的文字已被编辑，没有做任何改动。" } }
       }
     },
     "The last dictation is still being saved. Try again shortly." : {

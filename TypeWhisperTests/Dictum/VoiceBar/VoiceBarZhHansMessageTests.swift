@@ -26,7 +26,7 @@ final class VoiceBarZhHansMessageTests: XCTestCase {
 
     /// 撤销和恢复的反馈：DictationUndoService.Failure.feedbackMessage
     /// 与 DictationViewModel 的两条成功提示。
-    func testUndoAndRestoreFeedbackResolvesToChinese() throws {
+    func testUndoAndRestoreMessagesHaveChineseCatalogValues() throws {
         try assertChineseCatalogValues([
             "There is no recent dictation to change.",
             "The inserted text already matches the raw transcript.",
@@ -46,7 +46,7 @@ final class VoiceBarZhHansMessageTests: XCTestCase {
 
     /// 录音和输入设备错误：AudioRecordingError、SelectedInputDeviceError
     /// 与录音过程的状态提示。
-    func testRecordingErrorFeedbackResolvesToChinese() throws {
+    func testRecordingErrorMessagesHaveChineseCatalogValues() throws {
         try assertChineseCatalogValues([
             "Microphone permission denied. Please grant access in System Settings.",
             "No audio data was recorded.",
@@ -73,7 +73,7 @@ final class VoiceBarZhHansMessageTests: XCTestCase {
 
     /// 识别错误：TranscriptionEngineError 的目录键、恢复回退与超时文案，
     /// 以及云端识别插件上报的 PluginTranscriptionError。
-    func testTranscriptionErrorFeedbackResolvesToChinese() throws {
+    func testTranscriptionErrorMessagesHaveChineseCatalogValues() throws {
         try assertChineseCatalogValues([
             "%@ is not available.",
             "Check its settings page in the sidebar or choose another engine under Settings > Dictation.",
@@ -99,7 +99,7 @@ final class VoiceBarZhHansMessageTests: XCTestCase {
     }
 
     /// 插入失败、恢复入口和润色回退的反馈。
-    func testInsertionAndFallbackFeedbackResolvesToChinese() throws {
+    func testInsertionAndFallbackMessagesHaveChineseCatalogValues() throws {
         try assertChineseCatalogValues([
             "No text field detected",
             "The text field changed",
@@ -108,7 +108,27 @@ final class VoiceBarZhHansMessageTests: XCTestCase {
             "history.retranscribe.busy",
             "AI post-processing failed — raw transcription inserted",
             "Enter submission is unavailable. Check Accessibility access and restart dictum, or choose another Enter option.",
+            "Paste requested",
+            "Text inserted",
+            "Correction learning undone",
+            "Saved %d corrections to Dictionary",
         ])
+    }
+
+    /// 目录对象的顶层键不能重复；同名键会让不同解析器读到不同译文。
+    func testCatalogHasNoDuplicateKeys() throws {
+        let url = TestSupport.repoRoot.appendingPathComponent("TypeWhisper/Resources/Localizable.xcstrings")
+        let text = try String(contentsOf: url, encoding: .utf8)
+        var counts: [String: Int] = [:]
+        for line in text.split(separator: "\n", omittingEmptySubsequences: false) {
+            guard line.hasPrefix("    \""), line.hasSuffix("\" : {") else { continue }
+            let key = String(line.dropFirst(5).dropLast(4))
+            counts[key, default: 0] += 1
+        }
+        XCTAssertTrue(
+            counts.allSatisfy { $0.value == 1 },
+            "Duplicate catalog keys: \(counts.filter { $0.value > 1 }.map(\.key))"
+        )
     }
 
     /// 语音条固定状态文案与 dictum 各字符串表里的会话文案。

@@ -160,8 +160,8 @@ final class DictationViewModel: ObservableObject {
 
         var errorDescription: String? {
             let primaryDescription = primaryError.localizedDescription
-            return String.localizedStringWithFormat(
-                localizedAppText(
+            return String(
+                format: localizedAppText(
                     "Primary transcription failed: %@. Recovery fallback failed: %@",
                     de: "Primäre Transkription fehlgeschlagen: %@. Recovery-Fallback fehlgeschlagen: %@"
                 ),
@@ -179,8 +179,8 @@ final class DictationViewModel: ObservableObject {
         // appends the recovery confirmation and action itself when one does.
         var errorDescription: String? {
             let rounded = Int(seconds.rounded())
-            return String.localizedStringWithFormat(
-                localizedAppText(
+            return String(
+                format: localizedAppText(
                     "Transcription timed out after %d seconds.",
                     de: "Die Transkription hat nach %d Sekunden das Zeitlimit überschritten."
                 ),
