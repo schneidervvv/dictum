@@ -62,6 +62,15 @@ final class SignOffTests: XCTestCase {
         }
     }
 
+    func testStoredRowNameDropsTheAppExtensionForDisplay() {
+        let stored = AppStyle(id: "1", kind: .userApp, name: "文本编辑.app",
+                              bundleIDs: ["com.apple.TextEdit"], urlPatterns: [],
+                              formality: .casual, tone: .direct, emoji: .none)
+        XCTAssertEqual(stored.displayName, "文本编辑")
+        XCTAssertEqual(AppStyle.displayName(of: "备忘录.app"), "备忘录")
+        XCTAssertEqual(AppStyle.displayName(of: "备忘录"), "备忘录")
+    }
+
     func testApplicationNameDropsTheAppExtension() {
         for path in ["/System/Applications/TextEdit.app", "/Applications/Xcode.app"] {
             let url = URL(fileURLWithPath: path)

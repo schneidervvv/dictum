@@ -49,6 +49,13 @@ struct AppStyle: Codable, Equatable, Identifiable, Sendable {
         return String(name.dropLast(4))
     }
 
+    /// 行名和菜单项显示用的名字：Finder 显示扩展名时存入或读到的名字可能以 `.app` 结尾。
+    var displayName: String { Self.displayName(of: name) }
+
+    static func displayName(of name: String) -> String {
+        name.hasSuffix(".app") ? String(name.dropLast(4)) : name
+    }
+
     func matches(bundleID: String?, browserURL: String?) -> Bool {
         if let bundleID, bundleIDs.contains(bundleID) { return true }
         guard let browserURL, let url = URL(string: browserURL),
