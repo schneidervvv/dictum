@@ -123,9 +123,16 @@ struct ResolvedStyle: Equatable, Sendable {
         var core = Substring(signOff)
         while let first = core.first, isDecoration(first) { core = core.dropFirst() }
         while let last = core.last, isDecoration(last) { core = core.dropLast() }
-        var ending = Substring(body)
-        while let last = ending.last, isDecoration(last) { ending = ending.dropLast() }
-        if ending.lowercased().hasSuffix(core.lowercased()) { return text }
+        if core.isEmpty {
+            // 署名只由空白、标点或表情组成时，修剪结尾会连署名一起去掉，改为与署名原文比较。
+            var tail = Substring(body)
+            while let last = tail.last, isDecoration(last), !tail.lowercased().hasSuffix(signOff.lowercased()) { tail = tail.dropLast() }
+            if tail.lowercased().hasSuffix(signOff.lowercased()) { return text }
+        } else {
+            var ending = Substring(body)
+            while let last = ending.last, isDecoration(last) { ending = ending.dropLast() }
+            if ending.lowercased().hasSuffix(core.lowercased()) { return text }
+        }
         return body + "\n" + signOff
     }
 }

@@ -62,6 +62,15 @@ final class SignOffTests: XCTestCase {
         }
     }
 
+    func testSignOffMadeOnlyOfDecorationsIsAppendedWhenMissing() {
+        let style = style(signOff: "🙏")
+        XCTAssertEqual(style.appendingSignOff(to: "明天见。"), "明天见。\n🙏")
+        XCTAssertEqual(style.appendingSignOff(to: "明天见🙏"), "明天见🙏")
+        XCTAssertEqual(style.appendingSignOff(to: "明天见🙏。"), "明天见🙏。")
+        let once = style.appendingSignOff(to: "明天见。")
+        XCTAssertEqual(style.appendingSignOff(to: once), once)
+    }
+
     func testStoredRowNameDropsTheAppExtensionForDisplay() {
         let stored = AppStyle(id: "1", kind: .userApp, name: "文本编辑.app",
                               bundleIDs: ["com.apple.TextEdit"], urlPatterns: [],
