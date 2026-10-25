@@ -999,6 +999,14 @@ final class HotkeyService: ObservableObject, @unchecked Sendable {
         activeDelayedHybridModifierHold = false
     }
 
+    /// 菜单栏、Raycast 或本机接口开始的会话没有经过快捷键服务，刚报告为开始的按下实际结束了它。
+    /// 与结束快捷键会话的按下相同：清除会话状态，由 Fn 结束时 Fn 仍按住期间的左 Shift 不开始翻译。
+    func treatStartAsStopOfSessionStartedElsewhere() {
+        let pressedFn = activeGlobalHotkey?.kind == .fn
+        cancelDictation()
+        if pressedFn { fnPressStoppedSession = true }
+    }
+
     private func resetPausedDictationHotkeyState() {
         cancelPendingHybridModifierHold()
 

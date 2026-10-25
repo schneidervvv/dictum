@@ -54,7 +54,7 @@ final class HomeViewModel: ObservableObject {
     }
 
     func refresh() {
-        let recentRecords = historyService.recentRecords
+        let recentRecords = HomeMetrics.recentRecords(historyService.recentRecords)
         hasAnyTranscriptions = usageStatisticsService.hasAnyStatistics || !recentRecords.isEmpty
         recentTranscriptions = Array(recentRecords.prefix(3))
     }

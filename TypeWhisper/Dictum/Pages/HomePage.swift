@@ -26,9 +26,9 @@ struct HomePage: View {
                     if !accessibilityGranted { permission("dictum needs Accessibility access to type into other apps.", pane: "Privacy_Accessibility") }
                     if !microphoneGranted { permission("dictum needs microphone access to dictate.", pane: "Privacy_Microphone") }
                     stats
-                    if history.recentRecords.isEmpty { firstRun }
+                    if recentRecords.isEmpty { firstRun }
                     activity
-                    if !history.recentRecords.isEmpty { recent }
+                    if !recentRecords.isEmpty { recent }
                 }.padding(.horizontal, 28).padding(.top, 4).padding(.bottom, 28)
             }
         }
@@ -110,6 +110,8 @@ struct HomePage: View {
             .background(DictumTheme.card, in: RoundedRectangle(cornerRadius: 12))
     }
 
+    private var recentRecords: [TranscriptionRecord] { HomeMetrics.recentRecords(history.recentRecords) }
+
     private var recent: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -118,7 +120,7 @@ struct HomePage: View {
                 Button { DictumNavigation.shared.open(.history) } label: { Text("All history", tableName: "DictumHome") }.buttonStyle(.plain).foregroundStyle(DictumTheme.accent)
             }
             VStack(spacing: 0) {
-                ForEach(Array(history.recentRecords.prefix(5))) { record in
+                ForEach(Array(recentRecords.prefix(5))) { record in
                     HStack(spacing: 12) {
                         if let bundle = record.appBundleIdentifier, let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundle) {
                             Image(nsImage: NSWorkspace.shared.icon(forFile: url.path)).resizable().frame(width: 20, height: 20)
