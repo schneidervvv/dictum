@@ -9,7 +9,8 @@ struct OnboardingSyncStep {
 
     var isAvailable: Bool { isAlreadyOn || controller.canEnableHistorySync }
 
-    var initialSwitch: Bool { isAvailable }
+    /// 首次进入时开关为开；记录过选择后显示通用页的当前状态。
+    var initialSwitch: Bool { isAlreadyOn || controller.needsSyncConsent }
 
     var switchEnabled: Bool { isAvailable && !isAlreadyOn }
 

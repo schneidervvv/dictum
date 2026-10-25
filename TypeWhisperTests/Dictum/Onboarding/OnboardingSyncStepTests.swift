@@ -94,6 +94,34 @@ final class OnboardingSyncStepTests: XCTestCase {
         XCTAssertFalse(reopened.isHistorySyncOn)
     }
 
+    func testOpeningOnboardingAgainAfterSyncWasSwitchedOffShowsTheSwitchOffAndContinueChangesNothing() async throws {
+        try makeICloudDriveAvailable()
+        await OnboardingSyncStep(controller: makeController()).apply(switchOn: false)
+
+        let reopened = makeController()
+        let step = OnboardingSyncStep(controller: reopened)
+        XCTAssertTrue(step.isAvailable)
+        XCTAssertFalse(step.initialSwitch)
+        XCTAssertTrue(step.switchEnabled)
+
+        await step.apply(switchOn: step.initialSwitch)
+
+        XCTAssertFalse(reopened.isHistorySyncOn)
+        XCTAssertEqual(reopened.mode, .off)
+        XCTAssertEqual(defaults.object(forKey: "dictum.sync.consent") as? Bool, false)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: defaultFolder.path))
+    }
+
+    func testStepShowsTheSwitchOffAfterSyncIsTurnedOffInGeneral() async throws {
+        try makeICloudDriveAvailable()
+        let controller = makeController()
+        await controller.enableHistorySync()
+        await controller.setMode(.off)
+
+        XCTAssertFalse(OnboardingSyncStep(controller: controller).initialSwitch)
+        XCTAssertFalse(OnboardingSyncStep(controller: makeController()).initialSwitch)
+    }
+
     func testUnavailableICloudDriveShowsTheSwitchOffAndDisabled() async {
         let controller = makeController()
         let step = OnboardingSyncStep(controller: controller)
@@ -137,7 +165,7 @@ final class OnboardingSyncStepTests: XCTestCase {
         XCTAssertFalse(controller.isHistorySyncOn)
         let step = OnboardingSyncStep(controller: controller)
         XCTAssertTrue(step.isAvailable)
-        XCTAssertTrue(step.initialSwitch)
+        XCTAssertFalse(step.initialSwitch)
 
         await step.apply(switchOn: true)
 
