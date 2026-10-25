@@ -11,6 +11,7 @@
     "polish.retry.replaced": {"localizations":{"en":{"stringUnit":{"state":"translated","value":"Polished text replaced the original."}},"zh-Hans":{"stringUnit":{"state":"translated","value":"已用润色结果替换原文。"}}}},
     "polish.retry.copied": {"localizations":{"en":{"stringUnit":{"state":"translated","value":"Replacement could not be verified. Polished text copied; check the target before pasting."}},"zh-Hans":{"stringUnit":{"state":"translated","value":"无法确认替换结果，润色文本已复制。请检查目标文字后再粘贴。"}}}},
     "Custom Endpoint…": {"localizations":{"en":{"stringUnit":{"state":"translated","value":"Custom Endpoint…"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"自定义接口地址…"}}}},
+    "Custom model ID…": {"localizations":{"en":{"stringUnit":{"state":"translated","value":"Custom model ID…"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"自定义模型 ID…"}}}},
     "OpenAI Compatible": {"localizations":{"en":{"stringUnit":{"state":"translated","value":"OpenAI Compatible"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"OpenAI 兼容"}}}},
     "Use lists where appropriate": {"localizations":{"en":{"stringUnit":{"state":"translated","value":"Use lists where appropriate"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"能分点的地方用列表"}}}},
     "Keep English technical terms and code identifiers": {"localizations":{"en":{"stringUnit":{"state":"translated","value":"Keep English technical terms and code identifiers"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"保留英文技术名词，不翻译代码标识符"}}}},
