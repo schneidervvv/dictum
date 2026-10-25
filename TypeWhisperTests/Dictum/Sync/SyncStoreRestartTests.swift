@@ -281,4 +281,62 @@ final class SyncStoreRestartTests: XCTestCase {
         XCTAssertEqual(snippetPairs(mac), Self.expectedSnippets)
         XCTAssertEqual(try folderOperations().filter { $0.kind == .delete }.count, 0)
     }
+
+    /// 旧版本保存的同步状态没有创建时间记录：词典与文本片段存储重建为空后，
+    /// 关闭再打开同步（needsFullRead）把三个集合都按新 Mac 处理，全部条目从
+    /// 文件夹取回、不写删除，另一台 Mac 不受影响。恢复后的同步重新记录了
+    /// 创建时间，身份能核实的集合里关闭期间的删除照常传播。
+    func testOffOnWithOldSyncStateRestoresRebuiltStores() async throws {
+        let defaultsA = try makeDefaults()
+        let defaultsB = try makeDefaults()
+        var macA: Mac! = launchMac(named: "mac-a", defaults: defaultsA)
+        let macB = launchMac(named: "mac-b", defaults: defaultsB)
+        let records = try addHistory(to: macA)
+        addDictionaryAndSnippets(to: macA)
+        var stateA = CloudFolderSyncState(deviceId: "mac-a")
+        var stateB = CloudFolderSyncState(deviceId: "mac-b")
+        try await sync(macA, state: &stateA)
+        try await sync(macB, state: &stateB)
+        XCTAssertEqual(macB.history.recordCount(), records.count)
+        XCTAssertEqual(dictionaryPairs(macB), Self.expectedDictionary)
+        XCTAssertEqual(snippetPairs(macB), Self.expectedSnippets)
+
+        try relaunch(&macA, named: "mac-a", defaults: defaultsA, deletingStores: ["dictionary", "snippets"])
+        XCTAssertTrue(macA.dictionary.entries.isEmpty, "重新启动后词典存储是新建的空文件")
+        XCTAssertTrue(macA.snippets.snippets.isEmpty, "重新启动后文本片段存储是新建的空文件")
+
+        // 旧版本保存的同步状态没有创建时间记录，负责人「关闭再打开同步」写入
+        // needsFullRead；三个集合都无法核实身份，全部按新 Mac 处理。
+        stateA.storeCreatedAts = nil
+        stateA.needsFullRead = true
+        try await sync(macA, state: &stateA)
+
+        XCTAssertEqual(dictionaryPairs(macA), Self.expectedDictionary)
+        XCTAssertEqual(snippetPairs(macA), Self.expectedSnippets)
+        XCTAssertEqual(macA.history.recordCount(), records.count)
+        XCTAssertEqual(try folderOperations().filter { $0.kind == .delete }.count, 0)
+
+        try await sync(macB, state: &stateB)
+        XCTAssertEqual(dictionaryPairs(macB), Self.expectedDictionary)
+        XCTAssertEqual(snippetPairs(macB), Self.expectedSnippets)
+        XCTAssertEqual(macB.history.recordCount(), records.count)
+
+        // 恢复后的同步重新记录了创建时间，三个集合的身份都能核实：再次关闭
+        // 再打开同步时，关闭期间删除的词典词条和文本片段照常写成删除操作。
+        stateA.needsFullRead = true
+        macA.dictionary.deleteEntries(macA.dictionary.entries.filter { $0.original == "星河项目" })
+        for snippet in macA.snippets.snippets {
+            macA.snippets.deleteSnippet(snippet)
+        }
+        try await sync(macA, state: &stateA)
+
+        XCTAssertEqual(dictionaryPairs(macA), ["Kubernetes→", "clawed code→Claude Code"])
+        XCTAssertTrue(macA.snippets.snippets.isEmpty)
+        XCTAssertGreaterThan(try folderOperations().filter { $0.kind == .delete }.count, 0)
+
+        try await sync(macB, state: &stateB)
+        XCTAssertEqual(dictionaryPairs(macB), ["Kubernetes→", "clawed code→Claude Code"])
+        XCTAssertTrue(macB.snippets.snippets.isEmpty)
+        XCTAssertEqual(macB.history.recordCount(), records.count)
+    }
 }
