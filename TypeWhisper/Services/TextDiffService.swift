@@ -111,6 +111,11 @@ final class TextDiffService {
     }
 
     func extractCorrections(original: String, edited: String) -> [CorrectionSuggestion] {
+        // 只动了空白（加、删或合并空格）没有任何词可学；不动这条，按空格切词会把删掉的词
+        // 和相邻的插入词配成一对（「I use Claude」合并成「I useClaude」学到「use → useClaude」）。
+        if original.filter({ !$0.isWhitespace }) == edited.filter({ !$0.isWhitespace }) {
+            return []
+        }
         // 中文听写结果没有空格，按空格切词会把整句当成一个词；含汉字或任一边没有空格就走分词器
         // 的片段规则，也避免空格差异把删词和插词配成一对（「用 Claude」去掉空格学到「用 → 用Claude」）。
         if !original.contains(" ") || !edited.contains(" ")
@@ -354,13 +359,13 @@ final class TextDiffService {
         guard original.allSatisfy(\.isHan), replacement.allSatisfy(\.isHan) else { return false }
         let originalSyllables = pinyinSyllables(of: original)
         let replacementSyllables = pinyinSyllables(of: replacement)
-        // 音节数不同且还有音节改了音，是改正一个词时顺手增删了字（新眼 → 星衍和），不学；
-        // 音节数不同但每个音节都没变（奥特曼 → 奥尔特曼 多一个 er）是听漏字，照常比较。
-        if originalSyllables.count != replacementSyllables.count {
-            let (fewer, more) = originalSyllables.count < replacementSyllables.count
-                ? (originalSyllables, replacementSyllables)
-                : (replacementSyllables, originalSyllables)
-            for syllable in fewer where !more.contains(syllable) {
+        // 字数不同且较短片段里有字在另一边不存在，是改正时换了字又顺手增删
+        // （新眼 → 星衍和、新眼 → 心眼哦），不学；每个字都在（奥特曼 → 奥尔特曼 多一个尔）
+        // 是听漏字，照常比较。
+        if original.count != replacement.count {
+            let (fewer, more) = original.count < replacement.count
+                ? (original, replacement) : (replacement, original)
+            for char in fewer where !more.contains(char) {
                 return true
             }
         }
