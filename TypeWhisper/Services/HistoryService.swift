@@ -1301,6 +1301,10 @@ final class HistoryService: ObservableObject {
         refreshRecentRecords()
     }
 
+    var userDataSyncStoreCreatedAt: Date? {
+        SwiftDataStoreFactory.storeCreatedAt(of: modelContainer)
+    }
+
     func userDataSyncHistoryRecords() -> [UserDataSyncHistoryRecord] {
         guard historySyncPreferences?.isEnabled == true else { return [] }
         return allRecords().compactMap { record in

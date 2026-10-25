@@ -75,6 +75,15 @@ final class TypeWhisperUserDataSyncStore: UserDataSyncStore, @unchecked Sendable
         )
     }
 
+    func storeCreationDates() -> [UserDataSyncCollection: Date] {
+        let dates: [UserDataSyncCollection: Date?] = [
+            .dictionary: dictionaryService.userDataSyncStoreCreatedAt,
+            .snippets: snippetService.userDataSyncStoreCreatedAt,
+            .history: historyService?.userDataSyncStoreCreatedAt,
+        ]
+        return dates.compactMapValues { $0 }
+    }
+
     func apply(_ mutations: [UserDataSyncMutation]) throws {
         guard !mutations.isEmpty else { return }
         isApplyingRemoteChanges = true

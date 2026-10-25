@@ -27,6 +27,8 @@ private final class InMemoryUserDataSyncStore: UserDataSyncStore, @unchecked Sen
         self.deletedHistoryRecords = deletedHistoryRecords
     }
 
+    func storeCreationDates() -> [UserDataSyncCollection: Date] { [:] }
+
     func snapshot() -> UserDataSyncSnapshot {
         snapshotCount += 1
         return UserDataSyncSnapshot(
@@ -293,7 +295,8 @@ final class CloudFolderSyncTests: XCTestCase {
             knownLocalItemIDs: ["dictionary:term:typewhisper"],
             exportedItemVersions: ["dictionary:term:typewhisper": "v1"],
             appliedOperationIDs: ["remote-operation"],
-            lastSyncAt: Self.date(20)
+            lastSyncAt: Self.date(20),
+            needsFullRead: true
         )
         defaults.set(
             try Self.stateEncoder.encode(expectedState),
