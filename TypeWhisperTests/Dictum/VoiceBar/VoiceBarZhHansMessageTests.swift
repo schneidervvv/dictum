@@ -117,14 +117,19 @@ final class VoiceBarZhHansMessageTests: XCTestCase {
     }
 
     /// 目录对象的顶层键不能重复；同名键会让不同解析器读到不同译文。
+    /// 键行有三种写法：标准（`"key" : {` 独占一行）、单行紧凑（`"key" : {...}`）
+    /// 和无空格冒号（`"key": {`），匹配时三种都算；键里的转义引号不误当收尾。
     func testCatalogHasNoDuplicateKeys() throws {
         let url = TestSupport.repoRoot.appendingPathComponent("TypeWhisper/Resources/Localizable.xcstrings")
         let text = try String(contentsOf: url, encoding: .utf8)
+        let keyLine = try NSRegularExpression(pattern: #"^    "((?:[^"\\]|\\.)*)" ?:"#)
         var counts: [String: Int] = [:]
-        for line in text.split(separator: "\n", omittingEmptySubsequences: false) {
-            guard line.hasPrefix("    \""), line.hasSuffix("\" : {") else { continue }
-            let key = String(line.dropFirst(5).dropLast(4))
-            counts[key, default: 0] += 1
+        for rawLine in text.split(separator: "\n", omittingEmptySubsequences: false) {
+            let line = String(rawLine)
+            let range = NSRange(line.startIndex..., in: line)
+            guard let match = keyLine.firstMatch(in: line, range: range),
+                  let keyRange = Range(match.range(at: 1), in: line) else { continue }
+            counts[String(line[keyRange]), default: 0] += 1
         }
         XCTAssertTrue(
             counts.allSatisfy { $0.value == 1 },
