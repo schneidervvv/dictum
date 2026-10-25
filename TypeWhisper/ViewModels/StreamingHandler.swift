@@ -47,7 +47,7 @@ final class StreamingHandler: @unchecked Sendable {
         /// Advances on every reset, so a replaced session's late append failure is
         /// not attributed to the session that follows it.
         var sessionGeneration: UInt64 = 0
-        /// 录音停止后，仍在运行的预览发来的文字不再交给界面：最终识别文字会替换预览，
+        /// 录音停止后，仍在运行的预览发来的文字不交给界面：最终识别文字会替换预览，
         /// 迟到的预览文字接在后面会让同一句话出现两遍。
         var previewDisplayClosed = false
     }

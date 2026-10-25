@@ -3,7 +3,7 @@ import TypeWhisperPluginSDK
 import XCTest
 @testable import TypeWhisper
 
-/// 停止录音后，仍在运行的预览发来的文字不再交给语音条：最终识别文字替换预览，
+/// 停止录音后，仍在运行的预览发来的文字不交给语音条：最终识别文字替换预览，
 /// 迟到的预览文字接在后面会让同一句话出现两遍。
 @MainActor
 final class StreamingPreviewAfterStopTests: XCTestCase {
@@ -133,6 +133,6 @@ final class StreamingPreviewAfterStopTests: XCTestCase {
         }
         XCTAssertTrue(result.text.contains("楼下"), "最终结果是识别文字：\(result.text)")
         XCTAssertEqual(updatesBeforeFinish, [])
-        XCTAssertEqual(updatesAfterFinish, [], "停止后迟到的预览文字不再更新语音条")
+        XCTAssertEqual(updatesAfterFinish, [], "停止后迟到的预览文字不更新语音条")
     }
 }
