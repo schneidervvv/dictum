@@ -1081,21 +1081,13 @@ struct OpenRouterSettingsView: View {
         guard !models.isEmpty else { return }
         fetchedLLMModels = models
         plugin.setFetchedLLMModels(models)
-        if !models.contains(where: { $0.id == selectedLLMModel }),
-           let first = models.first {
-            selectedLLMModel = first.id
-            plugin.selectLLMModel(first.id)
-        }
+        selectedLLMModel = plugin.selectedLLMModelId ?? ""
     }
 
     func applyTranscriptionModels(_ models: [OpenRouterFetchedModel]) {
         guard !models.isEmpty else { return }
         fetchedTranscriptionModels = models
         plugin.setFetchedTranscriptionModels(models)
-        if !models.contains(where: { $0.id == selectedTranscriptionModel }),
-           let first = models.first {
-            selectedTranscriptionModel = first.id
-            plugin.selectModel(first.id)
-        }
+        selectedTranscriptionModel = plugin.selectedModelId ?? ""
     }
 }
