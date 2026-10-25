@@ -167,9 +167,13 @@ final class DictationViewModelIndicatorSettingsTests: XCTestCase {
     func testCancellationBehaviorKeepsAChoiceTheOwnerSaved() {
         DictationViewModel.persistCancellationBehavior(.doubleEscape, defaults: defaults)
         XCTAssertEqual(DictationViewModel.loadCancellationBehavior(defaults: defaults), .doubleEscape)
+        DictationViewModel.persistCancellationBehavior(.singleEscape, defaults: defaults)
+        XCTAssertEqual(DictationViewModel.loadCancellationBehavior(defaults: defaults), .singleEscape)
         defaults.removeObject(forKey: UserDefaultsKeys.cancellationBehavior)
         defaults.set(true, forKey: UserDefaultsKeys.requireSecondEscapeToCancelRecording)
         XCTAssertEqual(DictationViewModel.loadCancellationBehavior(defaults: defaults), .doubleEscape)
+        defaults.set(false, forKey: UserDefaultsKeys.requireSecondEscapeToCancelRecording)
+        XCTAssertEqual(DictationViewModel.loadCancellationBehavior(defaults: defaults), .singleEscape)
     }
 
     func testCancellationBehaviorMigratesLegacyPreference() {
