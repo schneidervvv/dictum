@@ -226,6 +226,7 @@ struct DictumHistoryPage: View {
                     } else if failed {
                         Badge(text: "Not polished", tint: DictumTheme.warning, tableName: "DictumHistory")
                     }
+                    if record.isCancelled { cancelledBadge }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -244,6 +245,10 @@ struct DictumHistoryPage: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(record.id == selected ? [.isButton, .isSelected] : .isButton)
+    }
+
+    private var cancelledBadge: some View {
+        Badge(text: "Cancelled", tableName: "DictumHistory")
     }
 
     private var syncFooter: some View {
@@ -287,7 +292,10 @@ struct DictumHistoryPage: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(record.appName ?? "dictum").font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(DictumTheme.textPrimary)
-                    Text(detailDate(record)).font(.system(size: 12)).foregroundStyle(DictumTheme.textSecondary)
+                    HStack(spacing: 6) {
+                        Text(detailDate(record)).font(.system(size: 12)).foregroundStyle(DictumTheme.textSecondary)
+                        if record.isCancelled { cancelledBadge }
+                    }
                 }
                 Spacer(minLength: 12)
                 if showsOriginalToggle {
@@ -344,17 +352,19 @@ struct DictumHistoryPage: View {
         }
     }
 
-    /// 翻译记录显示两个文字框：译文在上，原话在下；翻译失败的记录没有译文，只显示原话。
+    /// 翻译记录显示两个文字框：译文在上，原话在下；翻译失败的记录和还没重试的取消记录没有译文，只显示原话。
     private func translationWells(_ record: TranscriptionRecord) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            if record.processingFailureMessage == nil {
+        let hasTranslation = record.processingFailureMessage == nil
+            && !(record.isCancelled && record.finalText == record.rawText)
+        return VStack(alignment: .leading, spacing: 0) {
+            if hasTranslation {
                 well(
                     Text("Translation · \(TranslationLanguageNames.name(for: record.targetLanguage ?? ""))", tableName: "DictumTranslation"),
                     text: record.finalText, secondary: false
                 ).padding(.top, 18)
             }
             well(Text("What you said", tableName: "DictumTranslation"), text: record.rawText, secondary: true)
-                .padding(.top, record.processingFailureMessage == nil ? 12 : 18)
+                .padding(.top, hasTranslation ? 12 : 18)
         }
     }
 
@@ -517,7 +527,7 @@ struct DictumHistoryPage: View {
         panel.nameFieldStringValue = "dictum-history.md"
         guard panel.runModal() == .OK, let url = panel.url else { return }
         let text = history.allRecords(query: HistoryQuery(searchText: search)).filter { filter.includes($0) }.map { record in
-            let heading = "## \(record.timestamp.formatted(.iso8601))\n\n"
+            let heading = "## \(record.timestamp.formatted(.iso8601))\n\n" + (record.isCancelled ? "Cancelled\n\n" : "")
             guard record.mode == .translation else { return heading + "\(record.finalText)\n" }
             let pair = "\(record.spokenLanguage ?? "auto") → \(record.targetLanguage ?? "")"
             return heading + "Translation (\(pair))\n\n\(record.finalText)\n\n> \(record.rawText)\n"

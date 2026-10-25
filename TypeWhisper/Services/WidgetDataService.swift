@@ -88,7 +88,7 @@ final class WidgetDataService {
         }
 
         // Recent history - last 5
-        let recentHistory = Array(records.prefix(5)).map { record in
+        let recentHistory = Array(records.lazy.filter { !$0.isCancelled }.prefix(5)).map { record in
             WidgetHistoryItem(
                 id: record.id,
                 timestamp: record.timestamp,
