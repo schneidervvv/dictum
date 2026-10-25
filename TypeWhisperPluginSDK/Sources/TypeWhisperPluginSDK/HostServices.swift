@@ -1071,9 +1071,9 @@ public enum PluginTranscriptionError: LocalizedError, Sendable {
         case .fileTooLarge:
             String(localized: "Audio file too large for the API.")
         case .apiError(let message):
-            String(localized: "API error: \(message)")
+            String(format: String(localized: "API error: %@"), message)
         case .networkError(let message):
-            String(localized: "Network error: \(message)")
+            String(format: String(localized: "Network error: %@"), message)
         }
     }
 }

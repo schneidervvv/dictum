@@ -361,7 +361,7 @@ final class TextInsertionService {
             case .accessibilityNotGranted:
                 AccessibilityPermissionPane.enableInSystemSettingsText()
             case .pasteFailed(let detail):
-                String(localized: "Failed to paste text: \(detail)")
+                String(format: String(localized: "Failed to paste text: %@"), detail)
             }
         }
     }
