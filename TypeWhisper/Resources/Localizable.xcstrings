@@ -22250,6 +22250,11 @@
         }
       }
     },
+    "Loading model…" : {
+      "localizations" : {
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在加载模型…" } }
+      }
+    },
     "Local" : {
       "localizations" : {
         "de" : {

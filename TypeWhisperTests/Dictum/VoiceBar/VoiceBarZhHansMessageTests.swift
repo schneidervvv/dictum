@@ -68,6 +68,7 @@ final class VoiceBarZhHansMessageTests: XCTestCase {
             "Press Esc again to cancel recording",
             "Press Esc again to cancel transcription",
             "The recording was saved to Dictation Recovery.",
+            "Loading model…",
         ])
     }
 
