@@ -34,7 +34,7 @@ struct DictumMenuBarView: View {
         Group {
             Label {
                 if !AXIsProcessTrusted() { text("Accessibility access needed") }
-                else if dictation.state == .recording { text("Dictating") + Text(verbatim: " · \(Int(dictation.recordingDuration) / 60):\(String(format: "%02d", Int(dictation.recordingDuration) % 60))") }
+                else if dictation.state == .recording { Text(MenuBarRecordingStatus.title(for: dictation.sessionMode)) + Text(verbatim: " · \(Int(dictation.recordingDuration) / 60):\(String(format: "%02d", Int(dictation.recordingDuration) % 60))") }
                 else { Text(SidebarStatus.current().titleKey, tableName: "DictumShell") + Text(verbatim: statusDetail.isEmpty ? "" : " · \(statusDetail)") }
             } icon: { Image(systemName: "circle.fill").font(.system(size: 7)) }.disabled(true)
             if !AXIsProcessTrusted() {

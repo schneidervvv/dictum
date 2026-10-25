@@ -1019,7 +1019,8 @@ final class DictationViewModel: ObservableObject {
            let behavior = CancellationBehavior(rawValue: rawValue) {
             return behavior
         }
-        let requiresConfirmation = defaults.object(forKey: UserDefaultsKeys.requireSecondEscapeToCancelRecording) as? Bool ?? true
+        // 没有保存过选择的安装按一次 Esc 取消；旧版开关保存过的值是用户自己选的，照旧读取。
+        let requiresConfirmation = defaults.object(forKey: UserDefaultsKeys.requireSecondEscapeToCancelRecording) as? Bool ?? false
         return requiresConfirmation ? .doubleEscape : .singleEscape
     }
 
@@ -3373,6 +3374,9 @@ final class DictationViewModel: ObservableObject {
                     return
                 }
 
+                // 语音条的润色中、翻译中状态显示最终识别文字，替换录音时的预览。
+                partialText = text
+
                 let actionPluginId = self.effectiveActionPluginId
                 // An accepted physical submit survives a later browser URL workflow match.
                 let autoEnterMode: WorkflowAutoEnterMode = submitRequested ? .duringDictation : self.effectiveAutoEnterMode
@@ -5003,19 +5007,14 @@ final class DictationViewModel: ObservableObject {
         if matchedWorkflow == nil, promptProcessingService.hasConfiguredPolishProvider {
             let app = capturedActiveApp
             let store = StyleStore.shared
-            let style = store.resolve(bundleID: app?.bundleId, browserURL: app?.url)
-            let level = store.level
-            let vocabulary = dictionaryService.vocabularyForPrompt()
-            let processor = promptProcessingService
-            return { text in
-                modelPostProcessingRan?.withLock { $0 = true }
-                let request = PolishRequest(rawTranscript: text, level: level, style: style,
-                                            vocabulary: vocabulary,
-                                            target: .init(appName: app?.name, bundleID: app?.bundleId, browserURL: app?.url))
-                return try await processor.processWorkflow(prompt: request.systemPrompt, text: request.userContent,
-                                                           providerOverride: nil, cloudModelOverride: nil,
-                                                           temperatureDirective: .custom(0.2))
-            }
+            return PolishHandler.make(
+                processor: promptProcessingService,
+                level: store.level,
+                style: store.resolve(bundleID: app?.bundleId, browserURL: app?.url),
+                vocabulary: dictionaryService.vocabularyForPrompt(),
+                target: .init(appName: app?.name, bundleID: app?.bundleId, browserURL: app?.url),
+                onModelRun: { modelPostProcessingRan?.withLock { $0 = true } }
+            )
         }
         return nil
     }
