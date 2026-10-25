@@ -1,18 +1,5 @@
 import Foundation
 
-/// 上手引导的步骤序号。
-enum OnboardingStep {
-    static let welcome = 0
-    static let permissions = 1
-    static let microphone = 2
-    static let model = 3
-    static let dictationPractice = 4
-    static let translationPractice = 5
-    static let sync = 6
-    static let done = 7
-    static let count = 8
-}
-
 /// 同步步骤的开关状态和「继续」时的应用方式；状态都来自通用页共用的同步控制器。
 @MainActor
 struct OnboardingSyncStep {

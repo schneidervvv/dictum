@@ -54,7 +54,7 @@ struct DictumOnboardingView: View {
             HStack {
                 if (OnboardingStep.permissions..<OnboardingStep.done).contains(step) { Button { step -= 1 } label: { text("Back") }.buttonStyle(.plain) }
                 Spacer()
-                if step == 4 || step == 5 { Button { step += 1 } label: { text("Skip") }.buttonStyle(.plain) }
+                if step == OnboardingStep.dictationPractice || step == OnboardingStep.translationPractice { Button { step += 1 } label: { text("Skip") }.buttonStyle(.plain) }
                 Button {
                     if step == OnboardingStep.done {
                         HomeViewModel.shared.completeSetupWizard()
@@ -65,19 +65,19 @@ struct DictumOnboardingView: View {
                         Task { await syncStep.apply(switchOn: choice) }
                         step += 1
                     } else { step += 1 }
-                } label: { text(step == 0 ? "Get Started" : step == OnboardingStep.done ? "Start Using dictum" : "Continue") }
+                } label: { text(step == OnboardingStep.welcome ? "Get Started" : step == OnboardingStep.done ? "Start Using dictum" : "Continue") }
                     .buttonStyle(.borderedProminent).controlSize(.large).disabled(!canContinue)
             }.padding(.horizontal, 24).frame(height: 72)
         }.frame(width: 640, height: 540).background(DictumTheme.windowBackground)
             .background(OnboardingWindowPolicy(finished: step == OnboardingStep.done))
             .animation(.easeOut(duration: reduceMotion ? 0.15 : 0.35), value: step)
-            .task { if step == 0 || step == 3 { await prepareModel() } }
+            .task { if step == OnboardingStep.welcome || step == OnboardingStep.model { await prepareModel() } }
             .task(id: "\(step)-\(devices.selectedDeviceUID ?? "")") {
-                if step == 2 { startMeter() }
+                if step == OnboardingStep.microphone { startMeter() }
             }
             .onChange(of: step) { old, new in
-                if old == 2 { stopMeter() }
-                if new == 4 || new == 5 {
+                if old == OnboardingStep.microphone { stopMeter() }
+                if new == OnboardingStep.dictationPractice || new == OnboardingStep.translationPractice {
                     practiceText = ""
                     completedPractice = false
                 }
@@ -87,9 +87,9 @@ struct DictumOnboardingView: View {
                 microphone = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
                 accessibility = AXIsProcessTrusted()
                 fnAction = Self.fnUsage
-                if step == 2 && recorder.rawAudioLevel > 0.01 { heardSeconds += 0.1 }
-                if (step == 4 || step == 5), dictation.state == .inserting,
-                   dictation.sessionMode == (step == 5 ? .translation : .dictation),
+                if step == OnboardingStep.microphone && recorder.rawAudioLevel > 0.01 { heardSeconds += 0.1 }
+                if (step == OnboardingStep.dictationPractice || step == OnboardingStep.translationPractice), dictation.state == .inserting,
+                   dictation.sessionMode == (step == OnboardingStep.translationPractice ? .translation : .dictation),
                    dictation.translationFailure == nil,
                    !practiceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { completedPractice = true }
             }
@@ -106,22 +106,22 @@ struct DictumOnboardingView: View {
 
     private var canContinue: Bool {
         switch step {
-        case 1: microphone && accessibility && fnAction == 0
-        case 2: heardSeconds >= 1.2
-        case 3: models.isModelReady
-        case 4, 5: completedPractice
+        case OnboardingStep.permissions: microphone && accessibility && fnAction == 0
+        case OnboardingStep.microphone: heardSeconds >= 1.2
+        case OnboardingStep.model: models.isModelReady
+        case OnboardingStep.dictationPractice, OnboardingStep.translationPractice: completedPractice
         default: true
         }
     }
 
     @ViewBuilder private var content: some View {
         switch step {
-        case 0:
+        case OnboardingStep.welcome:
             Image(nsImage: NSApplication.shared.applicationIconImage).resizable().frame(width: 96, height: 96).padding(.top, 34)
             title("Talk, and it's typed")
             text("Press fn in any text field, talk, then press fn again. dictum cleans up filler words, organizes paragraphs, and puts the text at your cursor.").font(.system(size: 14)).foregroundStyle(.secondary).multilineTextAlignment(.center)
             shortcuts
-        case 1:
+        case OnboardingStep.permissions:
             title("Turn on access")
             text("Audio and text are only processed when you press the shortcut.").foregroundStyle(.secondary)
             VStack(spacing: 0) {
@@ -133,7 +133,7 @@ struct DictumOnboardingView: View {
                     permission("fn key", subtitle: "Change the system fn action to Do Nothing.", actionTitle: "Open Keyboard Settings", icon: "keyboard", granted: false) { openPreferences("com.apple.Keyboard-Settings.extension") }
                 }
             }.background(DictumTheme.card, in: RoundedRectangle(cornerRadius: 10)).padding(.top, 10)
-        case 2:
+        case OnboardingStep.microphone:
             title("Say something")
             text("For example: Nice weather today.").foregroundStyle(.secondary)
             HStack(spacing: 4) {
@@ -145,7 +145,7 @@ struct DictumOnboardingView: View {
                 ForEach(devices.inputDevices) { device in Text(verbatim: device.name).tag(Optional(device.uid)) }
             } label: { text("Microphone") }.frame(maxWidth: 280)
             if let failure { Text(verbatim: failure).foregroundStyle(DictumTheme.danger) }
-        case 3:
+        case OnboardingStep.model:
             title("Getting the speech model ready")
             text("Qwen3-ASR recognizes Chinese and English on this Mac, no internet needed.").foregroundStyle(.secondary).multilineTextAlignment(.center)
             VStack(alignment: .leading, spacing: 14) {
@@ -160,9 +160,9 @@ struct DictumOnboardingView: View {
                 }
             }.padding(18).frame(maxWidth: .infinity, alignment: .leading).background(DictumTheme.card, in: RoundedRectangle(cornerRadius: 12)).padding(.top, 14)
             Button { DictumNavigation.shared.open(.speech) } label: { text("Use cloud recognition instead") }.buttonStyle(.plain).foregroundStyle(DictumTheme.accent)
-        case 4, 5:
-            title(step == 4 ? "Practice dictation" : "Practice translation")
-            if step == 4 {
+        case OnboardingStep.dictationPractice, OnboardingStep.translationPractice:
+            title(step == OnboardingStep.dictationPractice ? "Practice dictation" : "Practice translation")
+            if step == OnboardingStep.dictationPractice {
                 text("Press fn, read the text below, then press fn again.").foregroundStyle(.secondary)
                 text("Um, let's meet Friday, no, Thursday afternoon, to discuss the budget, hiring, and next quarter's plans.")
                     .padding(14).frame(maxWidth: .infinity, alignment: .leading).background(DictumTheme.accentSoft, in: RoundedRectangle(cornerRadius: 10))
@@ -171,10 +171,10 @@ struct DictumOnboardingView: View {
             }
             TextEditor(text: $practiceText).font(.system(size: 14)).frame(height: 118).overlay(RoundedRectangle(cornerRadius: 10).stroke(DictumTheme.separator))
                 .focused($practiceFocused).onAppear { practiceFocused = true }
-                .accessibilityLabel(step == 4 ? text("Your text appears here") : Text("The translation appears here", tableName: "DictumTranslation"))
+                .accessibilityLabel(step == OnboardingStep.dictationPractice ? text("Your text appears here") : Text("The translation appears here", tableName: "DictumTranslation"))
             if completedPractice {
                 Label {
-                    if step == 4 { text("Fillers and corrections handled") }
+                    if step == OnboardingStep.dictationPractice { text("Fillers and corrections handled") }
                     else { Text("Click the language on the voice bar to switch targets", tableName: "DictumTranslation") }
                 } icon: { Image(systemName: "checkmark.circle.fill") }.foregroundStyle(DictumTheme.success)
             }
@@ -295,7 +295,7 @@ struct DictumOnboardingView: View {
         let cleanup = meterCleanup
         meterTask = Task {
             await cleanup?.value
-            guard !Task.isCancelled, step == 2 else { return }
+            guard !Task.isCancelled, step == OnboardingStep.microphone else { return }
             do {
                 try await recorder.startRecordingAsync()
                 meterOwned = true
