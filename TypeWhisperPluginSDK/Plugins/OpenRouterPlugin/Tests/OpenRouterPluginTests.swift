@@ -618,6 +618,96 @@ final class OpenRouterPluginTests: XCTestCase {
         XCTAssertEqual(host.userDefault(forKey: "selectedLLMModel") as? String, "google/gemma-4-26b-a4b-it:free")
     }
 
+    /// 旧设置视图的刷新路径：手输的自定义模型 ID 不在接口列表里，刷新后仍保持选中。
+    @MainActor
+    func testSettingsViewApplyKeepsTypedCustomLLMModelId() throws {
+        let host = try PluginTestHostServices()
+        let plugin = OpenRouterPlugin()
+        plugin.activate(host: host)
+        plugin.dictumSelectLLMModel("myco/test-model-1")
+
+        let view = OpenRouterSettingsView(plugin: plugin)
+        view.applyLLMModels([
+            OpenRouterFetchedModel(
+                id: "a-vendor/paid-model", name: "A Vendor Paid",
+                promptPrice: "0.000003", completionPrice: "0.00003"
+            ),
+            OpenRouterFetchedModel(
+                id: "z-vendor/free-model:free", name: "Z Vendor Free",
+                promptPrice: "0", completionPrice: "0"
+            ),
+        ])
+
+        XCTAssertEqual(plugin.selectedLLMModelId, "myco/test-model-1")
+        XCTAssertEqual(host.userDefault(forKey: "selectedLLMModel") as? String, "myco/test-model-1")
+    }
+
+    /// 旧设置视图的刷新路径：已选模型被接口下架后回落到列表里第一个免费模型。
+    @MainActor
+    func testSettingsViewApplyFallsBackToFirstFreeModelWhenSavedModelDelisted() throws {
+        let storedFetched = try JSONEncoder().encode([
+            OpenRouterFetchedModel(
+                id: "vendor/delisted-model", name: "Vendor Delisted",
+                promptPrice: "0.000001", completionPrice: "0.000001"
+            ),
+        ])
+        let host = try PluginTestHostServices(defaults: [
+            "fetchedModels": storedFetched,
+            "selectedLLMModel": "vendor/delisted-model",
+        ])
+        let plugin = OpenRouterPlugin()
+        plugin.activate(host: host)
+        XCTAssertEqual(plugin.selectedLLMModelId, "vendor/delisted-model")
+
+        let view = OpenRouterSettingsView(plugin: plugin)
+        view.applyLLMModels([
+            OpenRouterFetchedModel(
+                id: "a-vendor/paid-model", name: "A Vendor Paid",
+                promptPrice: "0.000003", completionPrice: "0.00003"
+            ),
+            OpenRouterFetchedModel(
+                id: "z-vendor/free-model:free", name: "Z Vendor Free",
+                promptPrice: "0", completionPrice: "0"
+            ),
+        ])
+
+        XCTAssertEqual(plugin.selectedLLMModelId, "z-vendor/free-model:free")
+        XCTAssertEqual(host.userDefault(forKey: "selectedLLMModel") as? String, "z-vendor/free-model:free")
+    }
+
+    /// 旧设置视图的刷新路径：转写模型被接口下架后已保存的选择保持不变。
+    @MainActor
+    func testSettingsViewApplyKeepsDelistedTranscriptionModel() throws {
+        let storedFetched = try JSONEncoder().encode([
+            OpenRouterFetchedModel(
+                id: "vendor/delisted-stt", name: "Vendor Delisted STT",
+                promptPrice: "0.000006", completionPrice: "0"
+            ),
+        ])
+        let host = try PluginTestHostServices(defaults: [
+            "fetchedTranscriptionModels": storedFetched,
+            "selectedModel": "vendor/delisted-stt",
+        ])
+        let plugin = OpenRouterPlugin()
+        plugin.activate(host: host)
+        XCTAssertEqual(plugin.selectedModelId, "vendor/delisted-stt")
+
+        let view = OpenRouterSettingsView(plugin: plugin)
+        view.applyTranscriptionModels([
+            OpenRouterFetchedModel(
+                id: "a-vendor/new-stt", name: "A Vendor STT",
+                promptPrice: "0.000002", completionPrice: "0"
+            ),
+            OpenRouterFetchedModel(
+                id: "z-vendor/other-stt", name: "Z Vendor STT",
+                promptPrice: "0.000004", completionPrice: "0"
+            ),
+        ])
+
+        XCTAssertEqual(plugin.selectedModelId, "vendor/delisted-stt")
+        XCTAssertEqual(host.userDefault(forKey: "selectedModel") as? String, "vendor/delisted-stt")
+    }
+
     func testTranscribeSplitsLongRecordingsIntoFiveMinuteRequests() async throws {
         // A request that outlasts the provider's 60 s or an oversized body ends in
         // a 5xx or a lost connection, not in a 413 (#1538).

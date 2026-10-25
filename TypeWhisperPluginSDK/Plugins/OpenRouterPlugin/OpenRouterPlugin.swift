@@ -752,7 +752,7 @@ struct OpenRouterFetchedModel: Codable, Sendable {
 
 // MARK: - Settings View
 
-private struct OpenRouterSettingsView: View {
+struct OpenRouterSettingsView: View {
     let plugin: OpenRouterPlugin
     @State private var apiKeyInput = ""
     @State private var isValidating = false
@@ -1077,7 +1077,7 @@ private struct OpenRouterSettingsView: View {
         }
     }
 
-    private func applyLLMModels(_ models: [OpenRouterFetchedModel]) {
+    func applyLLMModels(_ models: [OpenRouterFetchedModel]) {
         guard !models.isEmpty else { return }
         fetchedLLMModels = models
         plugin.setFetchedLLMModels(models)
@@ -1088,7 +1088,7 @@ private struct OpenRouterSettingsView: View {
         }
     }
 
-    private func applyTranscriptionModels(_ models: [OpenRouterFetchedModel]) {
+    func applyTranscriptionModels(_ models: [OpenRouterFetchedModel]) {
         guard !models.isEmpty else { return }
         fetchedTranscriptionModels = models
         plugin.setFetchedTranscriptionModels(models)
