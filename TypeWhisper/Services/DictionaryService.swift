@@ -1314,26 +1314,66 @@ final class DictionaryService: ObservableObject {
             return DictionaryCorrectionLearningResult(learnedCorrections: [], duplicateCount: 0, failed: true)
         }
 
-        var existingOriginals = Set(
-            entries
-                .filter { $0.type == .correction && !$0.isRegex }
-                .map { $0.original.lowercased() }
-        )
+        var entriesByOriginal: [String: DictionaryEntry] = [:]
+        for entry in entries where entry.type == .correction && !entry.isRegex {
+            entriesByOriginal[entry.original.lowercased()] = entry
+        }
+
         let now = Date()
         var learned: [LearnedDictionaryCorrection] = []
         var duplicateCount = 0
+        var deletedReverseEntries = false
 
         for suggestion in suggestions {
             let original = suggestion.original.trimmingCharacters(in: .whitespacesAndNewlines)
             let replacement = suggestion.replacement.trimmingCharacters(in: .whitespacesAndNewlines)
             let originalKey = original.lowercased()
+            let replacementKey = replacement.lowercased()
 
             guard !original.isEmpty,
-                  originalKey != replacement.lowercased() else {
+                  originalKey != replacementKey else {
                 continue
             }
-            guard !existingOriginals.contains(originalKey) else {
+
+            let sameOriginal = entriesByOriginal[originalKey]
+            let reverse = entriesByOriginal[replacementKey].flatMap {
+                ($0.replacement ?? "").lowercased() == originalKey ? $0 : nil
+            }
+
+            // 手工或导入的词条不被学习改动：同原词或反向词条命中这类词条时按重复跳过。
+            if sameOriginal?.source == .manual || reverse?.source == .manual {
                 duplicateCount += 1
+                continue
+            }
+
+            // 反向词条是更早一次自动学习留下的，最新一次改正优先。
+            if let reverse {
+                context.delete(reverse)
+                deletedReverseEntries = true
+                entriesByOriginal.removeValue(forKey: replacementKey)
+                learned.removeAll { $0.id == reverse.id }
+            }
+
+            if let sameOriginal {
+                if (sameOriginal.replacement ?? "").lowercased() == replacementKey {
+                    duplicateCount += 1
+                    continue
+                }
+                // 同一个原词的自动词条换成最新的替换词，作为新学到的词条计入刚学会。
+                sameOriginal.replacement = replacement
+                sameOriginal.isEnabled = true
+                sameOriginal.createdAt = now
+                sameOriginal.updatedAt = now
+                let learnedCorrection = LearnedDictionaryCorrection(
+                    id: sameOriginal.id,
+                    original: sameOriginal.original,
+                    replacement: replacement
+                )
+                if let learnedIndex = learned.firstIndex(where: { $0.id == sameOriginal.id }) {
+                    learned[learnedIndex] = learnedCorrection
+                } else {
+                    learned.append(learnedCorrection)
+                }
                 continue
             }
 
@@ -1347,7 +1387,7 @@ final class DictionaryService: ObservableObject {
                 updatedAt: now
             )
             context.insert(entry)
-            existingOriginals.insert(originalKey)
+            entriesByOriginal[originalKey] = entry
             learned.append(LearnedDictionaryCorrection(
                 id: entry.id,
                 original: original,
@@ -1355,7 +1395,7 @@ final class DictionaryService: ObservableObject {
             ))
         }
 
-        guard !learned.isEmpty else {
+        guard !learned.isEmpty || deletedReverseEntries else {
             return DictionaryCorrectionLearningResult(
                 learnedCorrections: [],
                 duplicateCount: duplicateCount,

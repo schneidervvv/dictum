@@ -46,7 +46,7 @@ final class TranslationPipelineTests: XCTestCase {
     private func run(_ text: String, through handler: TranslationHandler.Handler?) async throws -> PostProcessingResult {
         try await pipeline.process(
             text: text, context: PostProcessingContext(bundleIdentifier: "com.tinyspeck.slackmacgap", language: "zh"),
-            llmHandler: handler, llmStepName: handler == nil ? nil : "Translation", llmFailureFallbackText: text
+            llmHandler: handler, llmStepName: handler == nil ? nil : "Translation", fallsBackOnLLMFailure: true
         )
     }
 

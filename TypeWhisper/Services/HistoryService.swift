@@ -247,7 +247,8 @@ final class HistoryService: ObservableObject {
         modelUsed: String? = nil,
         audioSamples: [Float]? = nil,
         pipelineSteps: [String]? = nil,
-        translation: HistoryTranslationInfo? = nil
+        translation: HistoryTranslationInfo? = nil,
+        cancelled: Bool = false
     ) -> Bool {
         guard let texts = Self.validatedRecordTexts(
             rawText: rawText,
@@ -271,7 +272,8 @@ final class HistoryService: ObservableObject {
             modelUsed: modelUsed,
             audioFileName: audioSamples.flatMap { writeAudioFile($0, forRecordID: id) },
             pipelineSteps: pipelineSteps,
-            translation: translation
+            translation: translation,
+            cancelled: cancelled
         )
         return true
     }
@@ -296,6 +298,7 @@ final class HistoryService: ObservableObject {
         audioFileName: String?,
         pipelineSteps: [String]? = nil,
         translation: HistoryTranslationInfo? = nil,
+        cancelled: Bool = false,
         capturedInClearGeneration: Int? = nil
     ) -> Bool {
         let wasCleared = capturedInClearGeneration.map { $0 != clearGeneration } ?? false
@@ -327,7 +330,8 @@ final class HistoryService: ObservableObject {
             modelUsed: modelUsed,
             audioFileName: audioFileName,
             pipelineSteps: pipelineSteps,
-            translation: translation
+            translation: translation,
+            cancelled: cancelled
         )
         return true
     }
@@ -413,7 +417,8 @@ final class HistoryService: ObservableObject {
         modelUsed: String?,
         audioFileName: String?,
         pipelineSteps: [String]?,
-        translation: HistoryTranslationInfo? = nil
+        translation: HistoryTranslationInfo? = nil,
+        cancelled: Bool = false
     ) {
         let record = TranscriptionRecord(
             id: id,
@@ -436,6 +441,7 @@ final class HistoryService: ObservableObject {
             record.targetLanguage = translation.targetLanguage
             record.processingFailureMessage = translation.failureMessage
         }
+        record.isCancelled = cancelled
         record.originDeviceID = historySyncPreferences?.deviceID ?? ""
         record.originPlatformRaw = "macOS"
         record.source = .mac
@@ -1334,7 +1340,8 @@ final class HistoryService: ObservableObject {
                 alignmentResetAt: record.transcriptionAlignmentResetAt,
                 mode: record.modeRaw,
                 spokenLanguage: record.spokenLanguage,
-                targetLanguage: record.targetLanguage
+                targetLanguage: record.targetLanguage,
+                cancelled: record.isCancelled ? true : nil
             )
             let inbox = UserDataSyncHistoryInboxV1(
                 recordID: record.id,
@@ -1451,6 +1458,7 @@ final class HistoryService: ObservableObject {
                 record.modeRaw = content.mode
                 record.spokenLanguage = content.spokenLanguage
                 record.targetLanguage = content.targetLanguage
+                record.isCancelled = content.cancelled ?? false
                 record.contentUpdatedAt = content.updatedAt
                 if !previousContent.matchesContent(of: record) {
                     // A remote replacement has no known local version provenance.
@@ -1742,7 +1750,7 @@ final class HistoryService: ObservableObject {
             let oldCount = record.wordsCount
             guard newCount != oldCount else { continue }
             record.wordsCount = newCount
-            if oldCount > 0, isRecordFromThisDevice(record) {
+            if oldCount > 0, !record.isCancelled, isRecordFromThisDevice(record) {
                 deltas[calendar.startOfDay(for: record.timestamp), default: 0] += newCount - oldCount
             }
         }

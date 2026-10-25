@@ -8,7 +8,7 @@ final class PolishRetryTests: XCTestCase {
     func testFailureClearsWhenNextRecordingStarts() throws {
         let (model, directory) = try makeModel()
         defer { TestSupport.remove(directory) }
-        model.recordPolishFailure(reason: "网络不可用", text: "会议四点开始。", handler: { $0 }, snapshot: nil)
+        model.recordPolishFailure(reason: "网络不可用", text: "会议四点开始。", handler: { $0 }, finish: { $0 }, snapshot: nil)
         XCTAssertEqual(model.polishFailure, "网络不可用")
         model.state = .recording
         XCTAssertNil(model.polishFailure)
@@ -28,7 +28,7 @@ final class PolishRetryTests: XCTestCase {
             XCTAssertEqual(text, "嗯，会议四点开始。")
             completed.fulfill()
             return "会议四点开始。"
-        }, snapshot: nil)
+        }, finish: { $0 }, snapshot: nil)
         model.retryPolish()
         await fulfillment(of: [completed], timeout: 2)
         for _ in 0..<20 where model.polishFailure != nil { await Task.yield() }
@@ -61,7 +61,7 @@ final class PolishRetryTests: XCTestCase {
         model.recordPolishFailure(reason: "请求超时", text: raw, handler: { _ in
             completed.fulfill()
             return "会议四点开始。"
-        }, snapshot: .init(rawTranscript: raw, insertedText: raw, transcriptionID: UUID(), timestamp: Date(),
+        }, finish: { $0 }, snapshot: .init(rawTranscript: raw, insertedText: raw, transcriptionID: UUID(), timestamp: Date(),
                            applicationBundleIdentifier: "com.apple.TextEdit", element: element,
                            caretLocation: selection.location, value: original))
         model.retryPolish()
@@ -79,7 +79,7 @@ final class PolishRetryTests: XCTestCase {
         model.recordPolishFailure(reason: "首次失败", text: "会议四点开始。", handler: { _ in
             completed.fulfill()
             throw URLError(.timedOut)
-        }, snapshot: nil)
+        }, finish: { $0 }, snapshot: nil)
         model.retryPolish()
         await fulfillment(of: [completed], timeout: 2)
         for _ in 0..<20 where model.polishFailure == "首次失败" { await Task.yield() }

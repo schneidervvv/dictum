@@ -122,6 +122,8 @@ final class TranscriptionRecord {
     var modeRaw: String?
     var spokenLanguage: String?
     var targetLanguage: String?
+    /// 按 Esc 取消、3 秒内没有恢复的会话：只转写和纠正，没有插入，不计入首页统计。旧记录按未取消读取。
+    var isCancelled: Bool = false
 
     var mode: DictationMode {
         get { modeRaw.flatMap(DictationMode.init(rawValue:)) ?? .dictation }

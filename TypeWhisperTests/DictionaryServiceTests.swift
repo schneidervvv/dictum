@@ -925,6 +925,103 @@ final class DictionaryServiceTests: XCTestCase {
     }
 
     @MainActor
+    func testLatestCorrectionWinsOverAutoLearnedReverseEntries() throws {
+        let appSupportDirectory = try TestSupport.makeTemporaryDirectory()
+        defer { TestSupport.remove(appSupportDirectory) }
+
+        let service = DictionaryService(appSupportDirectory: appSupportDirectory)
+        let first = service.learnCorrectionsWithResult([
+            CorrectionSuggestion(original: "钱文", replacement: "千问")
+        ])
+        XCTAssertEqual(first.learnedCorrections.map(\.original), ["钱文"])
+
+        // 反方向再改一次：旧的反向词条被删掉，只留最新一条
+        let second = service.learnCorrectionsWithResult([
+            CorrectionSuggestion(original: "千问", replacement: "钱文")
+        ])
+        XCTAssertEqual(second.learnedCorrections.map(\.original), ["千问"])
+        XCTAssertEqual(second.duplicateCount, 0)
+        let corrections = service.entries.filter { $0.type == .correction }
+        XCTAssertEqual(corrections.count, 1)
+        XCTAssertEqual(corrections.first?.original, "千问")
+        XCTAssertEqual(corrections.first?.replacement, "钱文")
+
+        // 听写每个词都得到最新一次的改正
+        XCTAssertEqual(service.applyCorrections(to: "我在用千问写代码。"), "我在用钱文写代码。")
+        XCTAssertEqual(service.applyCorrections(to: "我在用钱文写代码。"), "我在用钱文写代码。")
+
+        // 再改回来，仍然只留最新一条
+        let third = service.learnCorrectionsWithResult([
+            CorrectionSuggestion(original: "钱文", replacement: "千问")
+        ])
+        XCTAssertEqual(third.learnedCorrections.map(\.original), ["钱文"])
+        let finalCorrections = service.entries.filter { $0.type == .correction }
+        XCTAssertEqual(finalCorrections.count, 1)
+        XCTAssertEqual(finalCorrections.first?.original, "钱文")
+        XCTAssertEqual(finalCorrections.first?.replacement, "千问")
+        XCTAssertEqual(service.applyCorrections(to: "我在用钱文写代码。"), "我在用千问写代码。")
+        XCTAssertEqual(service.applyCorrections(to: "我在用千问写代码。"), "我在用千问写代码。")
+    }
+
+    @MainActor
+    func testManualReverseEntryBlocksLearningAndStays() throws {
+        let appSupportDirectory = try TestSupport.makeTemporaryDirectory()
+        defer { TestSupport.remove(appSupportDirectory) }
+
+        let service = DictionaryService(appSupportDirectory: appSupportDirectory)
+        service.addEntry(type: .correction, original: "千问", replacement: "钱文")
+
+        let result = service.learnCorrectionsWithResult([
+            CorrectionSuggestion(original: "钱文", replacement: "千问")
+        ])
+
+        XCTAssertTrue(result.learnedCorrections.isEmpty)
+        XCTAssertEqual(result.duplicateCount, 1)
+        let corrections = service.entries.filter { $0.type == .correction }
+        XCTAssertEqual(corrections.count, 1)
+        XCTAssertEqual(corrections.first?.original, "千问")
+        XCTAssertEqual(corrections.first?.replacement, "钱文")
+        XCTAssertEqual(corrections.first?.source, .manual)
+        XCTAssertEqual(service.applyCorrections(to: "我在用千问写代码。"), "我在用钱文写代码。")
+    }
+
+    @MainActor
+    func testNewReplacementUpdatesAutoLearnedEntryButNotManualEntry() throws {
+        let appSupportDirectory = try TestSupport.makeTemporaryDirectory()
+        defer { TestSupport.remove(appSupportDirectory) }
+
+        let service = DictionaryService(appSupportDirectory: appSupportDirectory)
+        service.learnCorrection(original: "钱文", replacement: "千问")
+        let entryID = service.entries.first { $0.type == .correction }?.id
+
+        // 同一个原词换替换词，自动词条跟着更新，算学到一次
+        let updated = service.learnCorrectionsWithResult([
+            CorrectionSuggestion(original: "钱文", replacement: "千文")
+        ])
+        XCTAssertEqual(updated.learnedCorrections.count, 1)
+        XCTAssertEqual(updated.learnedCorrections.first?.original, "钱文")
+        XCTAssertEqual(updated.learnedCorrections.first?.replacement, "千文")
+        XCTAssertEqual(updated.duplicateCount, 0)
+        let corrections = service.entries.filter { $0.type == .correction }
+        XCTAssertEqual(corrections.count, 1)
+        XCTAssertEqual(corrections.first?.id, entryID)
+        XCTAssertEqual(corrections.first?.replacement, "千文")
+        XCTAssertEqual(service.applyCorrections(to: "我在用钱文写代码。"), "我在用千文写代码。")
+
+        // 手工词条不受这条规则影响，建议照旧按重复跳过
+        let manualDirectory = try TestSupport.makeTemporaryDirectory()
+        defer { TestSupport.remove(manualDirectory) }
+        let manualService = DictionaryService(appSupportDirectory: manualDirectory)
+        manualService.addEntry(type: .correction, original: "钱文", replacement: "千问")
+        let skipped = manualService.learnCorrectionsWithResult([
+            CorrectionSuggestion(original: "钱文", replacement: "千文")
+        ])
+        XCTAssertTrue(skipped.learnedCorrections.isEmpty)
+        XCTAssertEqual(skipped.duplicateCount, 1)
+        XCTAssertEqual(manualService.entries.filter { $0.type == .correction }.first?.replacement, "千问")
+    }
+
+    @MainActor
     func testWhitespaceBearingLatinFillerCorrectionsStillApplyAtWordBoundaries() throws {
         let plainDirectory = try TestSupport.makeTemporaryDirectory()
         defer { TestSupport.remove(plainDirectory) }

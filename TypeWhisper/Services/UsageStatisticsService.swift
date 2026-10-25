@@ -177,7 +177,8 @@ final class UsageStatisticsService: ObservableObject, UsageStatisticsRecording {
         }
 
         do {
-            for record in records {
+            // 取消的会话没有插入文字，不计入统计。
+            for record in records where !record.isCancelled {
                 let wordsCount = record.wordsCount > 0
                     ? record.wordsCount
                     : DictumWordCount.count(record.finalText)
@@ -248,7 +249,7 @@ final class UsageStatisticsService: ObservableObject, UsageStatisticsRecording {
         guard !detailBackfillCompleted else { return }
 
         do {
-            for record in records {
+            for record in records where !record.isCancelled {
                 let wordsCount = record.wordsCount > 0
                     ? record.wordsCount
                     : DictumWordCount.count(record.finalText)

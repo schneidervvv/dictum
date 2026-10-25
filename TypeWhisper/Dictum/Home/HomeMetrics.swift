@@ -1,6 +1,11 @@
 import Foundation
 
 enum HomeMetrics {
+    /// 首页最近记录：取消的会话只留在历史页。
+    static func recentRecords(_ records: [TranscriptionRecord]) -> [TranscriptionRecord] {
+        records.filter { !$0.isCancelled }
+    }
+
     static func recentDate(_ date: Date) -> String {
         if Calendar.current.isDateInToday(date) { return date.formatted(date: .omitted, time: .shortened) }
         if Calendar.current.isDateInYesterday(date) { return String(localized: "Yesterday", table: "DictumHome") }

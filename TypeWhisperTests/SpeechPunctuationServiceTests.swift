@@ -738,7 +738,7 @@ final class SpeechPunctuationServiceTests: XCTestCase {
     }
 
     @MainActor
-    func testPreLLMCorrectionUsageIsNotCountedWhenRawFallbackIsInserted() async throws {
+    func testPreLLMCorrectionIsInsertedAndCountedOnceWhenTheLLMStepFails() async throws {
         let setup = try makeCorrectionPipeline(original: "dev and think", replacement: "DEVONthink")
         defer { setup.cleanup() }
 
@@ -753,12 +753,12 @@ final class SpeechPunctuationServiceTests: XCTestCase {
             ),
             llmHandler: { _ in throw URLError(.badServerResponse) },
             llmStepName: "Workflow",
-            llmFailureFallbackText: "use dev and think"
+            fallsBackOnLLMFailure: true
         )
 
         XCTAssertNotNil(result.fallback)
-        XCTAssertEqual(result.text, "use dev and think")
-        XCTAssertEqual(setup.dictionaryService.corrections.first?.usageCount, 0)
+        XCTAssertEqual(result.text, "use DEVONthink")
+        XCTAssertEqual(setup.dictionaryService.corrections.first?.usageCount, 1)
     }
 
     @MainActor
@@ -778,7 +778,7 @@ final class SpeechPunctuationServiceTests: XCTestCase {
                 ),
                 llmHandler: { _ in throw CancellationError() },
                 llmStepName: "Workflow",
-                llmFailureFallbackText: "use dev and think"
+                fallsBackOnLLMFailure: true
             )
             XCTFail("Expected cancellation")
         } catch is CancellationError {
@@ -893,7 +893,7 @@ final class SpeechPunctuationServiceTests: XCTestCase {
     }
 
     @MainActor
-    func testPipelineReturnsRawFallbackWhenLLMProcessingFails() async throws {
+    func testPipelineContinuesWithTheLLMInputWhenLLMProcessingFails() async throws {
         let appSupportDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: appSupportDirectory, withIntermediateDirectories: true)
@@ -921,14 +921,14 @@ final class SpeechPunctuationServiceTests: XCTestCase {
             },
             llmStepName: "Workflow",
             normalizeNumbers: true,
-            llmFailureFallbackText: rawText
+            fallsBackOnLLMFailure: true
         )
 
-        XCTAssertEqual(result.text, rawText)
-        XCTAssertEqual(result.appliedSteps, [])
+        XCTAssertEqual(result.text, "23")
+        XCTAssertEqual(result.appliedSteps, ["Number Normalization"])
         XCTAssertEqual(
             result.fallback,
-            PostProcessingFallback(failedStep: "Workflow", reason: "Provider unavailable")
+            PostProcessingFallback(failedStep: "Workflow", reason: "Provider unavailable", llmInput: "23")
         )
     }
 
@@ -947,7 +947,7 @@ final class SpeechPunctuationServiceTests: XCTestCase {
                 context: PostProcessingContext(language: "en"),
                 llmHandler: { _ in throw CancellationError() },
                 llmStepName: "Workflow",
-                llmFailureFallbackText: "Keep this text"
+                fallsBackOnLLMFailure: true
             )
             XCTFail("Expected cancellation to propagate")
         } catch is CancellationError {
@@ -970,7 +970,7 @@ final class SpeechPunctuationServiceTests: XCTestCase {
                 context: PostProcessingContext(language: "en"),
                 llmHandler: { _ in throw URLError(.cancelled) },
                 llmStepName: "Workflow",
-                llmFailureFallbackText: "Keep this text"
+                fallsBackOnLLMFailure: true
             )
             XCTFail("Expected URL cancellation to propagate")
         } catch is CancellationError {
