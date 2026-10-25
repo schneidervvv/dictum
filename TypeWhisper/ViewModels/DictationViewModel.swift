@@ -1688,6 +1688,19 @@ final class DictationViewModel: ObservableObject {
             }
             .store(in: &cancellables)
 
+        // 历史重试取得识别租约时，已取消录音的后台转写像新听写一样让位；租约结束后空闲时继续。
+        HistoryRetranscriptionActivity.recordIDPublisher
+            .removeDuplicates()
+            .sink { [weak self] recordID in
+                guard let self else { return }
+                if recordID != nil {
+                    cancelledRecordingSaveTask?.cancel()
+                } else {
+                    startPendingCancelledRecordingSave()
+                }
+            }
+            .store(in: &cancellables)
+
         hotkeyService.onDictationStart = { [weak self] requestTimestamp in
             guard let self else { return }
             logger.info("hotkey→onDictationStart (state=\(String(describing: self.state), privacy: .public))")
@@ -2034,7 +2047,7 @@ final class DictationViewModel: ObservableObject {
     /// 所以排队的录音只在没有听写录音、处理或排队开始时转写；新的听写开始时取消转写（`state` 的 didSet），听写结束后重新转写。
     private func startPendingCancelledRecordingSave() {
         guard cancelledRecordingSaveTask == nil, state != .recording, state != .processing,
-              pendingHotkeyDictationStart == nil,
+              pendingHotkeyDictationStart == nil, HistoryRetranscriptionActivity.recordID == nil,
               let pending = pendingCancelledRecordings.first else { return }
         cancelledRecordingSaveTask = Task { [weak self] in
             guard let self else { return }
@@ -2050,6 +2063,8 @@ final class DictationViewModel: ObservableObject {
     /// 记录保存后才删除恢复录音；转写失败或没有识别出文字时，恢复录音留在「高级设置 → 听写恢复」。
     /// 转写被取消时返回 false，录音留在队列里。
     private func transcribeAndSaveCancelledRecording(_ pending: PendingCancelledRecording) async -> Bool {
+        HistoryRetranscriptionActivity.beginYieldingEngineUse()
+        defer { HistoryRetranscriptionActivity.endYieldingEngineUse() }
         let session = pending.session
         do {
             try Task.checkCancellation()
