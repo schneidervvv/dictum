@@ -111,6 +111,10 @@ final class TextDiffService {
     }
 
     func extractCorrections(original: String, edited: String) -> [CorrectionSuggestion] {
+        // 中文听写结果没有空格，按空格切词会把整句当成一个词；无空格文字走分词器的片段规则。
+        if !original.contains(" "), !edited.contains(" ") {
+            return extractHighConfidenceCorrections(original: original, edited: edited)
+        }
         let originalWords = original.split(separator: " ").map(String.init)
         let editedWords = edited.split(separator: " ").map(String.init)
 
@@ -207,27 +211,37 @@ final class TextDiffService {
         let originalChanged = originalTokens[prefix..<(originalTokens.count - suffix)]
         let editedChanged = editedTokens[prefix..<(editedTokens.count - suffix)]
 
-        // 两边都由多个词组成是改写一段话，两边共有的词（项目、的）说明改动区间切得过宽；
-        // 多 token 原文只在每个 token 都是单字（分词器不认识的词，例如酷|伯|尼|特|斯）时学习。
-        guard originalChanged.count == 1 || editedChanged.count == 1,
-              originalChanged.count == 1 || originalChanged.allSatisfy({ $0.text.count == 1 }),
-              Set(originalChanged.map(\.text)).isDisjoint(with: editedChanged.map(\.text)),
-              let originalSpan = Self.changedSpan(originalChanged, in: original, maximumTokens: Self.maximumOriginalSpanTokens),
-              let editedSpan = Self.changedSpan(editedChanged, in: edited, maximumTokens: Self.maximumEditedSpanTokens) else {
+        // 两边剩下的连续区间各拼成一个片段；拼不出来（带空格、跨标点、超过八个字）是改写，不学。
+        guard let originalSpan = Self.changedSpan(originalChanged, in: original),
+              let editedSpan = Self.changedSpan(editedChanged, in: edited) else {
             return []
         }
 
-        let originalStripped = Self.strippedWordToken(originalSpan)
-        let editedStripped = Self.strippedWordToken(editedSpan)
+        var originalFragment = Self.strippedWordToken(originalSpan)
+        var editedFragment = Self.strippedWordToken(editedSpan)
 
-        guard !originalStripped.isEmpty, !editedStripped.isEmpty,
-              originalStripped.lowercased() != editedStripped.lowercased(),
-              !(Self.isNumericValue(originalStripped) && Self.isNumericValue(editedStripped)),
-              !Self.isHanEditWithDifferentSound(originalStripped, editedStripped) else {
+        // 两边都被切成多个词时，分词器可能把上下文的字并进片段首尾的词条
+        // （「用钱|文」对「用|千|问」），首尾相同的字属于上下文，去掉后才是改动本身。
+        let bothSidesSplitIntoRuns = originalChanged.count > 1 && editedChanged.count > 1
+        if bothSidesSplitIntoRuns,
+           originalFragment.allSatisfy(\.isHan), editedFragment.allSatisfy(\.isHan) {
+            Self.trimSharedEdgeCharacters(original: &originalFragment, edited: &editedFragment)
+        }
+
+        guard !originalFragment.isEmpty, !editedFragment.isEmpty,
+              originalFragment.lowercased() != editedFragment.lowercased(),
+              !(Self.isNumericValue(originalFragment) && Self.isNumericValue(editedFragment)),
+              !Self.isHanEditWithDifferentSound(originalFragment, editedFragment) else {
             return []
         }
 
-        return [CorrectionSuggestion(original: originalStripped, replacement: editedStripped)]
+        // 两个多词片段内部还有一段连续相同的文字，说明区间里混着没改的词，是两处修改。
+        if bothSidesSplitIntoRuns,
+           Self.sharesAdjacentCharacters(originalFragment, editedFragment) {
+            return []
+        }
+
+        return [CorrectionSuggestion(original: originalFragment, replacement: editedFragment)]
     }
 
     private struct WordToken {
@@ -235,9 +249,9 @@ final class TextDiffService {
         let range: Range<String.Index>
     }
 
-    /// 识别结果可能把一个词切成几个单字（酷伯尼特斯在句末被切成 5 个），修正后只会是一个词或相邻的两个词。
-    private static let maximumOriginalSpanTokens = 5
-    private static let maximumEditedSpanTokens = 2
+    /// 识别结果会把不认识的词切成单字（酷伯尼特斯切成 5 个），多个词拼成的片段最多八个字，
+    /// 更长的改动区间是改写一段话。
+    private static let maximumFragmentCharacters = 8
 
     /// 无空格的文字（中文）由系统分词器切成词，英文仍按单词比较。
     private static func wordTokens(in text: String) -> [WordToken] {
@@ -251,18 +265,45 @@ final class TextDiffService {
         return tokens
     }
 
-    /// 改动区间只在相邻词紧挨（或只隔连字符、撇号）时才合并成一个词条，
+    /// 改动区间只在相邻词紧挨（或只隔连字符、撇号）时才合并成一个片段，
     /// 避免把带空格的多个词或跨标点的整句话学成一个词。
-    private static func changedSpan(_ tokens: ArraySlice<WordToken>, in text: String, maximumTokens: Int) -> String? {
-        guard let first = tokens.first, let last = tokens.last, tokens.count <= maximumTokens else {
-            return nil
+    private static func changedSpan(_ tokens: ArraySlice<WordToken>, in text: String) -> String? {
+        guard let first = tokens.first, let last = tokens.last else { return nil }
+        let span = text[first.range.lowerBound..<last.range.upperBound]
+        if tokens.count > 1 {
+            guard span.count <= maximumFragmentCharacters else { return nil }
+            let connectors = CharacterSet(charactersIn: "-‐'’")
+            for (previous, next) in zip(tokens, tokens.dropFirst()) {
+                let gap = text[previous.range.upperBound..<next.range.lowerBound]
+                guard gap.unicodeScalars.allSatisfy(connectors.contains) else { return nil }
+            }
         }
-        let connectors = CharacterSet(charactersIn: "-‐'’")
-        for (previous, next) in zip(tokens, tokens.dropFirst()) {
-            let gap = text[previous.range.upperBound..<next.range.lowerBound]
-            guard gap.unicodeScalars.allSatisfy(connectors.contains) else { return nil }
+        return String(span)
+    }
+
+    /// 去掉两个片段首尾连续相同的字；每边至少留一个字，去空的修改不学。
+    private static func trimSharedEdgeCharacters(original: inout String, edited: inout String) {
+        while original.count > 1, edited.count > 1, original.first == edited.first {
+            original.removeFirst()
+            edited.removeFirst()
         }
-        return String(text[first.range.lowerBound..<last.range.upperBound])
+        while original.count > 1, edited.count > 1, original.last == edited.last {
+            original.removeLast()
+            edited.removeLast()
+        }
+    }
+
+    /// 两个片段是否有一段连续两个以上相同的字；有则说明一处不变的文字夹在改动区间里，
+    /// 实际是两处修改（周四讨论新眼 → 周五讨论星衍 的「讨论」）。
+    private static func sharesAdjacentCharacters(_ first: String, _ second: String) -> Bool {
+        let characters = Array(first)
+        guard characters.count >= 2, second.count >= 2 else { return false }
+        for index in 0..<(characters.count - 1) {
+            if second.range(of: String(characters[index...index + 1])) != nil {
+                return true
+            }
+        }
+        return false
     }
 
     private static func strippedWordToken(_ token: String) -> String {
