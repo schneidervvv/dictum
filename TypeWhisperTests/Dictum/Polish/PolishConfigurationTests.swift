@@ -83,6 +83,51 @@ final class PolishConfigurationTests: XCTestCase {
         XCTAssertNil(KeychainService.load(service: "\(pluginId).api-key.\(profileID)"))
     }
 
+    func testCompatibleProviderDefaultNameIsLocalized() throws {
+        func localized(_ key: String, language: String) throws -> String {
+            let path = try XCTUnwrap(Bundle.main.path(forResource: language, ofType: "lproj"))
+            let bundle = try XCTUnwrap(Bundle(path: path))
+            return bundle.localizedString(forKey: key, value: "MISSING", table: "DictumStyle")
+        }
+        let zhName = try localized("OpenAI Compatible", language: "zh-Hans")
+        XCTAssertEqual(try localized("OpenAI Compatible", language: "en"), "OpenAI Compatible")
+        XCTAssertEqual(zhName, "OpenAI 兼容")
+
+        let pluginId = "com.typewhisper.openai-compatible"
+        let directory = try TestSupport.makeTemporaryDirectory()
+        let previousManager = PluginManager.shared
+        let previousBus = EventBus.shared
+        let previousOverride = AppConstants.testAppSupportDirectoryOverride
+        let pluginDefaultsPrefix = "plugin.\(pluginId)."
+        let savedPluginDefaults = UserDefaults.standard.dictionaryRepresentation()
+            .filter { $0.key.hasPrefix(pluginDefaultsPrefix) }
+        AppConstants.testAppSupportDirectoryOverride = directory
+        PluginManager.shared = PluginManager(appSupportDirectory: directory)
+        EventBus.shared = EventBus()
+        defer {
+            PluginManager.shared.unloadPlugin(pluginId, keepsSavedEngine: true)
+            for key in UserDefaults.standard.dictionaryRepresentation().keys where key.hasPrefix(pluginDefaultsPrefix) {
+                UserDefaults.standard.removeObject(forKey: key)
+            }
+            for (key, value) in savedPluginDefaults { UserDefaults.standard.set(value, forKey: key) }
+            PluginManager.shared = previousManager
+            EventBus.shared = previousBus
+            AppConstants.testAppSupportDirectoryOverride = previousOverride
+            TestSupport.remove(directory)
+        }
+        let bundleURL = try XCTUnwrap(Bundle.main.builtInPlugInsURL).appendingPathComponent("OpenAICompatiblePlugin.bundle")
+        try PluginManager.shared.loadPlugin(at: bundleURL)
+        XCTAssertNotNil(ProviderConfiguration.compatiblePlugin)
+
+        let first = try ProviderConfiguration.configure(["preset": "custom", "name": zhName])
+        XCTAssertEqual(first["name"] as? String, "OpenAI 兼容")
+        let second = try ProviderConfiguration.configure(["preset": "custom", "name": zhName])
+        XCTAssertEqual(second["name"] as? String, "OpenAI 兼容 2")
+        // 默认配置已经占用了「OpenAI Compatible」，英文名从 2 开始编号。
+        let english = try ProviderConfiguration.configure(["preset": "custom", "name": "OpenAI Compatible"])
+        XCTAssertEqual(english["name"] as? String, "OpenAI Compatible 2")
+    }
+
     func testStrengthTracksExternalAppStorageWrites() async throws {
         let suite = "PolishConfigurationTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))

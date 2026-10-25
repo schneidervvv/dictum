@@ -26,6 +26,23 @@ final class OpenAICompatiblePluginTests: XCTestCase {
         XCTAssertEqual(plugin.profileSnapshots.count, 6)
     }
 
+    /// AI 模型页给「自定义」供应商传入本地化基础名，第二个自动编号。
+    func testCustomProfileUsesProvidedLocalizedName() throws {
+        let host = try PluginTestHostServices()
+        let plugin = OpenAICompatiblePlugin()
+        plugin.activate(host: host)
+
+        let first = plugin.dictumConfigure(["preset": "custom", "name": "OpenAI 兼容"])
+        XCTAssertEqual(first["name"] as? String, "OpenAI 兼容")
+
+        let second = plugin.dictumConfigure(["preset": "custom", "name": "OpenAI 兼容"])
+        XCTAssertEqual(second["name"] as? String, "OpenAI 兼容 2")
+
+        // 默认配置已经占用了「OpenAI Compatible」，英文名从 2 开始编号。
+        let english = plugin.dictumConfigure(["preset": "custom", "name": "OpenAI Compatible"])
+        XCTAssertEqual(english["name"] as? String, "OpenAI Compatible 2")
+    }
+
     func testRemovingPresetProfileDeletesItsKeyAndLeavesNoOrphan() throws {
         let host = try PluginTestHostServices()
         let plugin = OpenAICompatiblePlugin()

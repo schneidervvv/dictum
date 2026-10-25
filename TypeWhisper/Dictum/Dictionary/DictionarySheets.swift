@@ -123,10 +123,10 @@ struct DictionaryAddSheet: View {
 
     private func add() {
         let candidates = DictionaryCSV.heardAsCandidates(from: heard)
-        guard service.entries.count + 1 + candidates.count <= DictionaryCSV.maximumWords else { error = DictionaryCSVError.count.localizedDescription; return }
+        guard service.entries.count + max(candidates.count, 1) <= DictionaryCSV.maximumWords else { error = DictionaryCSVError.count.localizedDescription; return }
         do {
-            _ = try service.applyDictionaryTraining(canonicalWord: word, approvedCandidates: candidates)
-            dismiss()
+            if try service.addWord(word, heardAs: candidates) > 0 { dismiss() }
+            else { error = String(localized: "Could not save. Check for a duplicate word.", table: "DictumHistory") }
         } catch { self.error = error.localizedDescription }
     }
 }

@@ -55,6 +55,7 @@ enum ProviderConfiguration {
             let pluginID = type(of: provider).pluginId
             try KeychainService.save(key: key, service: pluginID + ".api-key")
             PluginManager.shared.setPluginEnabled(pluginID, enabled: true)
+            refreshModels(providerID)
         }
     }
     static func removeProfile(_ providerID: String) {
@@ -70,9 +71,32 @@ enum ProviderConfiguration {
         removeProfile(item.providerId)
     }
     static func refreshModels(_ providerID: String) {
-        let selector = NSSelectorFromString("dictumRefreshModels:")
-        if compatiblePlugin?.responds(to: selector) == true {
-            compatiblePlugin?.perform(selector, with: providerID)
+        if providerID.hasPrefix("openai-compatible") {
+            let selector = NSSelectorFromString("dictumRefreshModels:")
+            if compatiblePlugin?.responds(to: selector) == true {
+                compatiblePlugin?.perform(selector, with: providerID)
+            }
+            return
+        }
+        // 内置插件（如 OpenRouter）通过各自的选择子刷新模型菜单。
+        guard let instance = PluginManager.shared?.llmProvider(for: providerID) as? NSObject else { return }
+        let selector = NSSelectorFromString("dictumRefreshLLMModels")
+        if instance.responds(to: selector) {
+            _ = instance.perform(selector)
+        }
+    }
+    /// 页面上的模型选择同步回插件，插件需要把手输的自定义 id 留在可解析的模型集合里。
+    static func selectModel(_ model: String, providerID: String) {
+        let trimmed = model.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        if providerID.hasPrefix("openai-compatible") {
+            _ = try? configure(["id": providerID, "model": trimmed])
+            return
+        }
+        guard let instance = PluginManager.shared?.llmProvider(for: providerID) as? NSObject else { return }
+        let selector = NSSelectorFromString("dictumSelectLLMModel:")
+        if instance.responds(to: selector) {
+            _ = instance.perform(selector, with: trimmed)
         }
     }
     static func connectionErrorKey(_ error: Error) -> String {

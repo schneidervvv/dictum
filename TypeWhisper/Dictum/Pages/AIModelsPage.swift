@@ -12,6 +12,7 @@ struct AIModelsPage: View {
     @State private var modelsKnown = true
     @State private var showEndpoint = false
     @State private var testing = false
+    @State private var enteringCustomModel = false
     @State private var hoveredProvider: UUID?
     @State private var testResult: ConnectionResult?
     @FocusState private var keyFocused: Bool
@@ -174,18 +175,36 @@ struct AIModelsPage: View {
             .background(DictumTheme.card, in: RoundedRectangle(cornerRadius: 12))
     }
 
+    /// 菜单里的哨兵项：选中后把手输模型 id 的文本框切出来。
+    private static let customModelTag = "\u{0}custom-model"
+
     private func modelPicker(_ item: LLMFallbackPriorityItem) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Model", tableName: "DictumStyle").font(.system(size: 12)).foregroundStyle(.secondary)
             let models = processing.modelsForProvider(item.providerId)
-            if models.isEmpty || !modelsKnown {
-                TextField("", text: $customModel).onSubmit { saveModel(item, model: customModel) }
+            if models.isEmpty || !modelsKnown || enteringCustomModel {
+                TextField("", text: $customModel).onSubmit {
+                    saveModel(item, model: customModel)
+                    enteringCustomModel = false
+                }
                     .accessibilityLabel(Text("Model", tableName: "DictumStyle"))
             } else {
                 let current = item.modelId ?? processing.defaultModelId(for: item.providerId) ?? models.first?.id ?? ""
-                Picker(selection: Binding(get: { current }, set: { saveModel(item, model: $0) })) {
+                Picker(selection: Binding(
+                    get: { current },
+                    set: { newValue in
+                        if newValue == Self.customModelTag {
+                            customModel = item.modelId ?? ""
+                            enteringCustomModel = true
+                        } else {
+                            saveModel(item, model: newValue)
+                        }
+                    }
+                )) {
                     if !models.contains(where: { $0.id == current }) { Text(verbatim: current).tag(current) }
                     ForEach(models, id: \.id) { Text(verbatim: $0.displayName).tag($0.id) }
+                    Divider()
+                    Text("Custom model ID…", tableName: "DictumStyle").tag(Self.customModelTag)
                 } label: { Text("Model", tableName: "DictumStyle") }
                     .pickerStyle(.menu).labelsHidden().menuIndicator(.hidden).buttonStyle(.borderless).tint(.primary)
                     .font(.system(size: 13)).padding(.leading, 10).padding(.trailing, 9)
@@ -227,13 +246,17 @@ struct AIModelsPage: View {
             var providerID = choice.id
             var model: String?
             if choice.preset {
-                let result = try ProviderConfiguration.configure(["preset": choice.id])
+                var values: [String: Any] = ["preset": choice.id]
+                // 「自定义」预设的名字走本地化字符串，新配置直接用显示名命名。
+                if choice.id == "custom" { values["name"] = choice.name }
+                let result = try ProviderConfiguration.configure(values)
                 guard let id = result["id"] as? String else { return }
                 providerID = id
                 model = result["model"] as? String
             }
             processing.addLLMFallback(providerId: providerID, modelId: model)
             selection = processing.fallbackPriorityList.last { $0.providerId == providerID }?.id
+            ProviderConfiguration.refreshModels(providerID)
             keyFocused = true
         } catch { testResult = .failed("provider.configurationError") }
     }
@@ -253,13 +276,20 @@ struct AIModelsPage: View {
         customModel = selected?.modelId ?? ""
         modelsKnown = true
         showEndpoint = false
+        enteringCustomModel = false
+        if let item = selected, !item.providerId.hasPrefix("openai-compatible") {
+            ProviderConfiguration.refreshModels(item.providerId)
+        }
         if let item = selected, item.providerId.hasPrefix("openai-compatible"),
            let snapshot = try? ProviderConfiguration.configure(["id": item.providerId]) {
             endpoint = snapshot["url"] as? String ?? ""
             customModel = item.modelId ?? snapshot["model"] as? String ?? ""
             modelsKnown = snapshot["modelsKnown"] as? Bool ?? false
             hasStoredKey = snapshot["hasKey"] as? Bool ?? false
-            showEndpoint = (snapshot["name"] as? String)?.hasPrefix("OpenAI Compatible") == true
+            let localizedBase = String(localized: "OpenAI Compatible", table: "DictumStyle")
+            showEndpoint = (snapshot["name"] as? String).map {
+                $0.hasPrefix(localizedBase) || $0.hasPrefix("OpenAI Compatible")
+            } == true
         }
     }
     @discardableResult private func saveKey(_ item: LLMFallbackPriorityItem) -> Bool {
@@ -278,6 +308,7 @@ struct AIModelsPage: View {
     }
     private func saveModel(_ item: LLMFallbackPriorityItem, model: String) {
         processing.updateLLMFallback(item, providerId: item.providerId, modelId: model)
+        ProviderConfiguration.selectModel(model, providerID: item.providerId)
     }
     private func test(_ original: LLMFallbackPriorityItem) {
         var item = original
