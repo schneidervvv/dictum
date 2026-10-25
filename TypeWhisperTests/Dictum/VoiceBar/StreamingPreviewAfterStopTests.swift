@@ -1,3 +1,4 @@
+import os
 import TypeWhisperPluginSDK
 import XCTest
 @testable import TypeWhisper
@@ -6,23 +7,27 @@ import XCTest
 /// 迟到的预览文字接在后面会让同一句话出现两遍。
 @MainActor
 final class StreamingPreviewAfterStopTests: XCTestCase {
-    private actor Gate {
-        private var continuation: CheckedContinuation<Void, Never>?
-        private(set) var isWaiting = false
+    /// 现场会话在结束时再报一次进度，就像识别在收尾时发来的迟到预览文字。
+    private final class SlowLiveSession: LiveTranscriptionSession, @unchecked Sendable {
+        let lateText: String
+        let onProgress: @Sendable (String) -> Bool
 
-        func wait() async {
-            isWaiting = true
-            await withCheckedContinuation { continuation = $0 }
+        init(lateText: String, onProgress: @escaping @Sendable (String) -> Bool) {
+            self.lateText = lateText
+            self.onProgress = onProgress
         }
 
-        func release() {
-            continuation?.resume()
-            continuation = nil
+        func appendAudio(samples: [Float]) async throws {}
+
+        func finish() async throws -> PluginTranscriptionResult {
+            _ = onProgress(lateText)
+            return PluginTranscriptionResult(text: lateText, detectedLanguage: "zh")
         }
+
+        func cancel() async {}
     }
 
-    /// 第一次预览一直运行到被放行，放行时才报出文字，就像录音停止时还在识别的预览。
-    private final class SlowPreviewPlugin: NSObject, TranscriptionEnginePlugin, @unchecked Sendable {
+    private final class SlowPreviewPlugin: NSObject, TranscriptionEnginePlugin, LiveTranscriptionCapablePlugin, @unchecked Sendable {
         static var pluginId: String { "com.dictum.test.slowpreview" }
         static var pluginName: String { "Slow Preview" }
         var providerId: String { "slow-preview" }
@@ -33,7 +38,6 @@ final class StreamingPreviewAfterStopTests: XCTestCase {
         var supportsTranslation: Bool { false }
         var supportsStreaming: Bool { true }
         var supportedLanguages: [String] { ["zh"] }
-        let gate = Gate()
         let lateText: String
 
         required override init() {
@@ -51,20 +55,16 @@ final class StreamingPreviewAfterStopTests: XCTestCase {
         func selectModel(_ modelId: String) {}
 
         func transcribe(audio: AudioData, language: String?, translate: Bool, prompt: String?) async throws -> PluginTranscriptionResult {
-            await gate.wait()
-            return PluginTranscriptionResult(text: lateText, detectedLanguage: language)
+            PluginTranscriptionResult(text: lateText, detectedLanguage: language)
         }
 
-        func transcribe(
-            audio: AudioData,
+        func createLiveTranscriptionSession(
             language: String?,
             translate: Bool,
             prompt: String?,
             onProgress: @Sendable @escaping (String) -> Bool
-        ) async throws -> PluginTranscriptionResult {
-            let result = try await transcribe(audio: audio, language: language, translate: translate, prompt: prompt)
-            _ = onProgress(result.text)
-            return result
+        ) async throws -> any LiveTranscriptionSession {
+            SlowLiveSession(lateText: lateText, onProgress: onProgress)
         }
     }
 
@@ -82,11 +82,19 @@ final class StreamingPreviewAfterStopTests: XCTestCase {
         let modelManager = ModelManagerService()
         modelManager.selectProvider(plugin.providerId)
 
+        // 第一次轮询送一秒语音，预览音频门记录到说话；之后没有新音频。
+        let speechSent = OSAllocatedUnfairLock(initialState: false)
         let handler = StreamingHandler(
             modelManager: modelManager,
             bufferProvider: { [] },
             recentBufferProvider: { _ in Array(repeating: 0.5, count: 16_000) },
-            bufferDeltaProvider: { _ in ([], 0) },
+            bufferDeltaProvider: { _ in
+                speechSent.withLock { sent in
+                    if sent { return ([], 16_000) }
+                    sent = true
+                    return (Array(repeating: 0.5, count: 16_000), 16_000)
+                }
+            },
             bufferedDurationProvider: { 1.0 }
         )
         defer { handler.stop() }
@@ -108,21 +116,22 @@ final class StreamingPreviewAfterStopTests: XCTestCase {
             stateCheck: { true }
         )
 
-        var previewStarted = false
+        var sessionOpened = false
         for _ in 0..<80 {
-            if await plugin.gate.isWaiting { previewStarted = true; break }
+            if handler.hasActiveLiveTranscriptionSession { sessionOpened = true; break }
             try await Task.sleep(for: .milliseconds(100))
         }
-        XCTAssertTrue(previewStarted)
-        guard previewStarted else { return }
+        XCTAssertTrue(sessionOpened)
+        guard sessionOpened else { return }
 
         finishCalled = true
-        let finishTask = Task { @MainActor in await handler.finish() }
-        try await Task.sleep(for: .milliseconds(100))
-        await plugin.gate.release()
-        _ = await finishTask.value
+        let outcome = await handler.finish()
         try await Task.sleep(for: .milliseconds(300))
 
+        guard case .finished(let result) = outcome else {
+            return XCTFail("现场会话应正常结束，实际 \(outcome)")
+        }
+        XCTAssertTrue(result.text.contains("楼下"), "最终结果是识别文字：\(result.text)")
         XCTAssertEqual(updatesBeforeFinish, [])
         XCTAssertEqual(updatesAfterFinish, [], "停止后迟到的预览文字不再更新语音条")
     }
