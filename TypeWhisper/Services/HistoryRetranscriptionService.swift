@@ -31,6 +31,19 @@ enum HistoryRetranscriptionActivity {
     }
     @TaskLocal static var ownsEngine = false
 
+    /// 正在进行的可向历史重试让位的后台引擎占用数。已取消录音的后台转写在
+    /// 历史重试开始时被整体取消，它持有引擎保护期间不视为忙碌。
+    private(set) static var yieldingEngineUseCount = 0
+
+    /// 标记一段可向历史重试让位的引擎占用开始；占用结束必须配对调用 `endYieldingEngineUse`。
+    static func beginYieldingEngineUse() {
+        yieldingEngineUseCount += 1
+    }
+
+    static func endYieldingEngineUse() {
+        yieldingEngineUseCount -= 1
+    }
+
     static func waitForEngineAvailability() async throws {
         try Task.checkCancellation()
         guard !ownsEngine else { return }

@@ -53,8 +53,9 @@ final class RecentTranscriptionStore: ObservableObject {
         }
     }
 
+    /// 已取消的记录没有插入过，不作为可以再次复制、粘贴或处理的最近一条。
     func mergedEntries(historyRecords: [TranscriptionRecord], limit: Int = 12) -> [Entry] {
-        let historyEntries = historyRecords.map {
+        let historyEntries = historyRecords.lazy.filter { !$0.isCancelled }.map {
             Entry(
                 id: $0.id,
                 finalText: $0.finalText,
