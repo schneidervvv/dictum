@@ -97,6 +97,64 @@ final class CancelledRecordingHistoryTests: DictationSessionTestCase {
         XCTAssertEqual(fixture.engine.transcribeCount, 3)
     }
 
+    /// 后台转写占用识别引擎时开始历史重试：重试不被忙碌拒绝，后台转写让位，重试结束后重新转写，只保存一条已取消的记录。
+    func testHistoryRetranscriptionDuringTheBackgroundTranscriptionIsNotRefusedAndTheSaveRunsAfterward() async throws {
+        let fixture = try makeFixture()
+        fixture.engine.holdsLongRecordings = true
+        await cancelSession(fixture, recording: longRecording)
+        try await fixture.wait(upTo: 8) { fixture.engine.transcribeCount == 1 }
+        XCTAssertEqual(longRecordingOrder(fixture), [true], "取消窗口结束后开始后台转写")
+
+        // 历史里一条带录音的记录作为重试对象。
+        let recordID = UUID()
+        let audioName = await fixture.history.writeAudioFileInBackground(fixture.samples, forRecordID: recordID)
+        XCTAssertTrue(fixture.history.addRecord(
+            id: recordID, rawText: "earlier dictation", finalText: "earlier dictation",
+            appName: "Notes", appBundleIdentifier: "com.apple.Notes", durationSeconds: 1,
+            language: "en", engineUsed: fixture.engine.providerId, modelUsed: "Tiny", audioFileName: audioName
+        ))
+        let record = try XCTUnwrap(fixture.history.record(withID: recordID))
+
+        let watchFolder = WatchFolderService(
+            audioFileService: AudioFileService(), modelManagerService: fixture.modelManager,
+            appSupportDirectory: directory, audioSamplesLoader: { _ in fixture.samples }
+        )
+        let service = HistoryRetranscriptionService(
+            history: fixture.history,
+            planBuilder: { request in
+                try HistoryRetranscriptionEnvironment.plan(
+                    request, manager: fixture.modelManager, dictionary: fixture.dictionary,
+                    workflows: [], promptProcessing: fixture.promptProcessing
+                )
+            },
+            isBusy: {
+                HistoryRetranscriptionEnvironment.isBackgroundTranscriptionBusy(
+                    manager: fixture.modelManager, watchFolder: watchFolder)
+            },
+            loadAudio: { _ in fixture.samples }
+        )
+        defer { service.cancel() }
+        service.start(
+            record: record, request: .init(engineID: fixture.engine.providerId),
+            cloudConfirmed: true, downloadConfirmed: true
+        )
+
+        XCTAssertNil(service.errorMessage, "历史重试没有被忙碌拒绝")
+        XCTAssertEqual(service.runningRecordID, record.id)
+
+        try await fixture.wait(upTo: 8) { service.runningRecordID == nil }
+        XCTAssertNil(service.errorMessage)
+        XCTAssertEqual(try record.savedTranscriptionVersions().count, 2, "重试完成了识别并保存了结果")
+
+        try await fixture.wait(upTo: 4) { fixture.engine.transcribeCount == 3 }
+        fixture.engine.holdsLongRecordings = false
+        try await fixture.wait(upTo: 4) { !self.cancelledRecords(fixture).isEmpty }
+        try await Task.sleep(for: .milliseconds(300))
+        XCTAssertEqual(cancelledRecords(fixture).count, 1, "让位后重新转写只保存一条已取消的记录")
+        XCTAssertEqual(fixture.history.recentRecords.count, 2)
+        XCTAssertTrue(fixture.recorder.recoveryRecordingURLs.isEmpty)
+    }
+
     /// 推迟的后台转写进行中退出应用：识别门关闭，转写停止，恢复录音留在听写恢复里，没有反复重试。
     func testQuitDuringTheDeferredBackgroundTranscriptionKeepsTheRecoveryFile() async throws {
         let fixture = try makeFixture()

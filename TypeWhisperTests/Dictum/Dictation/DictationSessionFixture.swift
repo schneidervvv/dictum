@@ -118,6 +118,8 @@ final class DictationSessionFixture {
     let chain: Chain
     let history: HistoryService
     let dictionary: DictionaryService
+    let modelManager: ModelManagerService
+    let promptProcessing: PromptProcessingService
     let snippets: SnippetService
     let hotkeys: HotkeyService
     let recorder: AudioRecordingService
@@ -211,6 +213,8 @@ final class DictationSessionFixture {
         self.chain = chain
         self.history = history
         self.dictionary = dictionary
+        self.modelManager = modelManager
+        self.promptProcessing = processing
         self.snippets = snippets
         self.hotkeys = hotkeys
         self.recorder = recorder
