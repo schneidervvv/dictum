@@ -116,6 +116,18 @@ struct CloudFolderSyncState: Codable, Equatable, Sendable {
             recorded[collection.rawValue] != createdAt.timeIntervalSince1970 ? collection : nil
         })
     }
+
+    /// `needsFullRead` 时身份无法核实的集合：状态里没有它的创建时间记录，
+    /// 或当前读不到它的创建时间，无法确认还是记录中的那个文件，按新建的存储处理。
+    /// 日期一致的集合不在此列，关闭同步期间的本地删除照常传播。
+    func unconfirmedCollections(
+        currentDates: [UserDataSyncCollection: Date]
+    ) -> Set<UserDataSyncCollection> {
+        guard needsFullRead else { return [] }
+        return Set([UserDataSyncCollection.dictionary, .snippets, .history].filter {
+            storeCreatedAts?[$0.rawValue] == nil || currentDates[$0] == nil
+        })
+    }
 }
 
 struct CloudFolderSyncResult: Equatable, Sendable {
@@ -407,8 +419,12 @@ enum CloudFolderSyncEngine {
             : restartedCollections
         var restartedState = state
         // 新建的存储像一台新 Mac 一样从文件夹取回全部条目，不为它从未有过的条目发出删除。
+        // needsFullRead 下身份无法核实的集合同样按新建的存储处理。
+        let newStoreCollections = restartedCollections.union(
+            state.unconfirmedCollections(currentDates: storeCreatedAts)
+        )
         restartedState.knownLocalItemIDs = restartedState.knownLocalItemIDs.filter {
-            !restartedCollections.contains(collection(ofStateKey: $0))
+            !newStoreCollections.contains(collection(ofStateKey: $0))
         }
         let previousState = restartedState
         // Repair modes dropped by a pre-regex Mac before it can republish them as
