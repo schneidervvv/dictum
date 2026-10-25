@@ -359,7 +359,7 @@ Apps not covered use the global style. A per-app row wins over a group that cont
 **Layout.** Grouped form, max width 600, sections in this order:
 
 1. **快捷键 Shortcuts.** `听写` [fn] · `翻译` [fn][左 ⇧] · `取消` [esc] (fixed) · `按住快捷键` popup (`按住说话，松开结束` / `不使用`) · `外接键盘` [右 ⌥] with a remove button, or an `添加备用快捷键` button when empty. Footer: `外接键盘没有 fn 键时，用这个备用快捷键听写。` Clicking a key cap enters recording: accent ring, caps dim, caption `按下新快捷键`; Esc or 3 s without input restores the old value. Conflicts show inline `这个快捷键已被“{app}”使用` in `danger`.
-2. **润色强度 Polish strength.** Three selectable option cards in a row: `轻度` (`去掉口头禅和重复，其余保留原话`), `标准` (`再处理改口、分段和列表`, default), `重写` (`按风格设置重新组织措辞`). Below, a well with `你说：…` and `写出：…` for the selected level.
+2. **润色强度 Polish strength.** Three selectable option cards in a row: `轻度` (`去掉「嗯」「那个」等口头禅和重复的词，其余照原话`), `标准` (`说错后改口的，只留改正后的说法；分好段落和列表；语气按风格调整`, default), `重写` (`按风格把整段话重新组织成通顺的文字`). Below, a well with `你说：…` and `写出：…` for the selected level. What each level takes from the resolved style (§5.4): sign-off and extra instructions at every level; formality, tone and emoji at `标准` and `重写`, where `标准` adjusts word choice, tone and emoji inside the speaker's own sentence structure and `重写` may reorganize the wording. A sign-off the style asks for is always at the end of the inserted text: when the model leaves it out, dictum appends it.
 3. **翻译语言 Translation languages.** First row `说话语言` popup: `自动识别` plus every language the speech engine supports, default `中文（简体）`. Below it, `翻译成`: a reorderable target list with drag grips; the first row carries a `默认` badge; hover shows a remove button; last row `添加语言` (the spoken language is not offered as a target). Default list: `English`. Footer: `第一个是默认目标语言。拖动可以调整顺序，语音条上按这个顺序显示。`
 4. **声音 Sound.** `麦克风` with a 12-segment live level meter and device popup (`自动（{device}）`); `提示音` switch; `听写时暂停其他声音` switch.
 5. **历史与同步 History & Sync.** `同步到 iCloud Drive` switch with status underneath (`2 分钟前已同步 · 1,286 条`, or `已关闭`); `同步文件夹` path (`iCloud Drive › dictum`) with `更改…`; `保留历史` popup (永久 / 1 年 / 1 个月 / 1 周 / 24 小时 / 不保留, default 1 年); `保存录音` switch. Footer: `同步文件夹里只有文字，录音只保存在这台 Mac 上。` Turning sync off asks: `关闭同步后，这台 Mac 上的历史会保留，同步文件夹里的文件不会删除。` Shortening retention asks `将删除 {n} 条早于 {date} 的记录。`
@@ -377,9 +377,9 @@ Apps not covered use the global style. A per-app row wins over a group that cont
 | 按下新快捷键 | Press new shortcut |
 | 这个快捷键已被“{app}”使用 | "{app}" already uses this shortcut |
 | 润色强度：轻度 / 标准 / 重写 | Polish: Light / Standard / Rewrite |
-| 去掉口头禅和重复，其余保留原话 | Removes fillers and repeats, keeps your words |
-| 再处理改口、分段和列表 | Also fixes self-corrections, paragraphs, and lists |
-| 按风格设置重新组织措辞 | Rewrites in your style |
+| 去掉「嗯」「那个」等口头禅和重复的词，其余照原话 | Removes filler words like "um" and repeats; keeps the rest as you said it |
+| 说错后改口的，只留改正后的说法；分好段落和列表；语气按风格调整 | When you correct yourself, keeps only the corrected words; adds paragraphs and lists; matches your style's tone |
+| 按风格把整段话重新组织成通顺的文字 | Rewrites the whole passage smoothly in your style |
 | 翻译语言 / 说话语言 / 自动识别 | Translation languages / Spoken language / Detect automatically |
 | 翻译成 / 默认 / 添加语言 | Translate to / Default / Add Language |
 | 第一个是默认目标语言…… | The first language is the default. Drag to reorder; the voice bar uses this order. |
@@ -493,7 +493,7 @@ Phase 2 confirms each preset URL against the provider's docs before shipping.
 
 ### 5.8 Onboarding 上手引导 (`onboarding.html`)
 
-A separate 640 × 540 window, centered, shown on first launch and from Home's `练习一次`. Close and minimize are disabled until the last step (traffic lights greyed except close, which asks `稍后再设置？` and leaves the app usable in the menu bar). Top: 7 progress dots (current is an 18pt accent pill, past dots tertiary). Bottom bar: `返回` (plain, hidden on first and last step), `跳过` (practice steps only), primary `继续`, disabled until the step's goal is met. Steps slide in from the right (0.35 s ease-out, 14pt offset).
+A separate 640 × 540 window, centered, shown on first launch and from Home's `练习一次`. Close and minimize are disabled until the last step (traffic lights greyed except close, which asks `稍后再设置？` and leaves the app usable in the menu bar). Top: 8 progress dots (current is an 18pt accent pill, past dots tertiary). Bottom bar: `返回` (plain, hidden on first and last step), `跳过` (practice steps only), primary `继续`, disabled until the step's goal is met. Steps slide in from the right (0.35 s ease-out, 14pt offset).
 
 | # | Step | Content | Goal to continue |
 |---|---|---|---|
@@ -503,7 +503,8 @@ A separate 640 × 540 window, centered, shown on first launch and from Home's `�
 | 3 | 模型 Model | `准备语音模型`, Qwen3 card with progress, size, time left; link `改用云端识别` opens Speech. When done: `已就绪`. | download complete or cloud engine configured |
 | 4 | 练习听写 Practice | `练习听写`, instruction, an accent-soft card with the sentence to read (contains fillers and a self-correction), a text area that receives the result, the real voice bar appears at the window bottom. On success: `✓ 口头禅和改口都处理好了`. | one dictation inserted, or `跳过` |
 | 5 | 练习翻译 Practice | same with a translate-soft card `中文 → English` and a Chinese sentence. Success note `在语音条上点语言，可以换成其他目标语言`. | one translation inserted, or `跳过` |
-| 6 | 完成 Done | green check icon, `准备好了`, cheat sheet of the three shortcuts. | button `开始使用` closes the window and opens Home |
+| 6 | 同步 Sync | `同步历史`, lead `听写记录存进 iCloud Drive 里的 dictum 文件夹。换一台 Mac 或清空数据后，可以从这里找回。` One form row: cloud icon tile, `同步到 iCloud Drive` with the folder path `iCloud Drive › dictum` underneath, and a switch that is on when the step opens. Footnote: `同步文件夹里只有文字，录音只保存在这台 Mac 上。` and `以后可以在 通用 → 历史与同步 里修改。` `继续` applies the switch: on turns on sync to the default iCloud Drive folder (the same action as General → History & Sync → `同步到 iCloud Drive`), off leaves sync off; either way the choice is recorded, so General shows no sync prompt afterwards. When iCloud Drive is not available on this Mac, the switch is off and disabled and the subtitle reads `这台 Mac 没有开启 iCloud Drive，可以以后在 通用 → 历史与同步 选择其他文件夹。` When sync is already on (onboarding opened again from Home), the switch shows on and `继续` changes nothing. | none |
+| 7 | 完成 Done | green check icon, `准备好了`, cheat sheet of the three shortcuts. | button `开始使用` closes the window and opens Home |
 
 **Copy.**
 
@@ -528,12 +529,15 @@ A separate 640 × 540 window, centered, shown on first launch and from Home's `�
 | 文字会出现在这里 / 口头禅和改口都处理好了 | Your text appears here / Fillers and corrections handled |
 | 练习翻译 / 按 fn + 左 ⇧，用中文说下面这句话，再按一下 fn。 | Practice translation / Press fn + Left ⇧, say this in Chinese, then press fn. |
 | 译文会出现在这里 / 在语音条上点语言，可以换成其他目标语言 | The translation appears here / Click the language on the voice bar to switch targets |
+| 同步历史 / 听写记录存进 iCloud Drive 里的 dictum 文件夹。换一台 Mac 或清空数据后，可以从这里找回。 | Sync your history / Your dictations are saved to the dictum folder in iCloud Drive. On another Mac, or after clearing data, you can get them back from there. |
+| 同步到 iCloud Drive / 以后可以在 通用 → 历史与同步 里修改。 | Sync to iCloud Drive / You can change this later in General → History & Sync. |
+| 这台 Mac 没有开启 iCloud Drive，可以以后在 通用 → 历史与同步 选择其他文件夹。 | iCloud Drive is off on this Mac. You can choose another folder later in General → History & Sync. |
 | 准备好了 | You're all set |
 | 听写，再按一下结束 / 翻译 / 取消，可以在历史里找回 | Dictate, press again to finish / Translate / Cancel, recoverable in History |
 
 **SwiftUI.** `Window` scene with `.windowResizability(.contentSize)`; a `TabView` is not used; switch steps with a `@State` index and `.transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .opacity))`. The practice text area is a real `TextEditor` so the real insertion path is exercised.
 
-**Data.** `SetupWizardView` steps (`welcome`, `permissions`, `hotkey`, `engineAI`, `finish`) are replaced by this flow. Permissions: `AccessibilityPermissionPane`, `AVCaptureDevice.requestAccess(for: .audio)`. Fn setting: read `AppleFnUsageType` from the `com.apple.HIToolbox` defaults domain (new code; nothing in TypeWhisper reads it yet). Mic level: `AudioRecordingService`. Model: `ModelManagerService`.
+**Data.** `SetupWizardView` steps (`welcome`, `permissions`, `hotkey`, `engineAI`, `finish`) are replaced by this flow. Permissions: `AccessibilityPermissionPane`, `AVCaptureDevice.requestAccess(for: .audio)`. Fn setting: read `AppleFnUsageType` from the `com.apple.HIToolbox` defaults domain (new code; nothing in TypeWhisper reads it yet). Mic level: `AudioRecordingService`. Model: `ModelManagerService`. Sync: the same controller and setting as General → History & Sync (`CloudFolderSyncSettingsView` / `HistorySyncSection`); the onboarding step and the General switch always show the same state.
 
 ## 6. Voice bar 语音条 (`voice-bar.html`)
 
