@@ -1061,19 +1061,19 @@ public enum PluginTranscriptionError: LocalizedError, Sendable {
     public var errorDescription: String? {
         switch self {
         case .notConfigured:
-            "Cloud provider not configured. Please set an API key."
+            String(localized: "Cloud provider not configured. Please set an API key.")
         case .noModelSelected:
-            "No cloud model selected."
+            String(localized: "No cloud model selected.")
         case .invalidApiKey:
-            "Invalid API key. Please check your API key and try again."
+            String(localized: "Invalid API key. Please check your API key and try again.")
         case .rateLimited:
-            "Rate limit or quota exceeded. Check your provider's usage limits and credit balance, or wait and try again."
+            String(localized: "Rate limit or quota exceeded. Check your provider's usage limits and credit balance, or wait and try again.")
         case .fileTooLarge:
-            "Audio file too large for the API."
+            String(localized: "Audio file too large for the API.")
         case .apiError(let message):
-            "API error: \(message)"
+            String(format: String(localized: "API error: %@"), message)
         case .networkError(let message):
-            "Network error: \(message)"
+            String(format: String(localized: "Network error: %@"), message)
         }
     }
 }

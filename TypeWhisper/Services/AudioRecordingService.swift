@@ -362,7 +362,7 @@ final class AudioRecordingService: ObservableObject, @unchecked Sendable {
         var errorDescription: String? {
             switch self {
             case .microphonePermissionDenied:
-                "Microphone permission denied. Please grant access in System Settings."
+                String(localized: "Microphone permission denied. Please grant access in System Settings.")
             case .noMicrophoneDetected:
                 String(localized: "No mic detected.")
             case .selectedInputDeviceUnavailable:
@@ -375,9 +375,17 @@ final class AudioRecordingService: ObservableObject, @unchecked Sendable {
                     de: "Das ausgewählte Mikrofon kollidiert mit deiner aktuellen Audio-Route. Trenne Bluetooth oder wähle ein anderes Eingabegerät."
                 )
             case .engineStartFailed(let detail):
-                "Failed to start audio engine: \(detail)"
+                // 该键目录里已有中文；没有德文和日文，参数照英文给出以保持原输出。
+                String(
+                    format: localizedAppText(
+                        "Failed to start audio engine: %@",
+                        de: "Failed to start audio engine: %@",
+                        ja: "Failed to start audio engine: %@"
+                    ),
+                    detail
+                )
             case .noAudioData:
-                "No audio data was recorded."
+                String(localized: "No audio data was recorded.")
             }
         }
     }
