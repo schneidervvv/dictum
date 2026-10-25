@@ -651,7 +651,8 @@ final class OpenAICompatiblePlugin: NSObject,
         } else {
             let preset = dictumPresets.first { $0["id"] == values["preset"] as? String }
             guard preset != nil || values["preset"] as? String == "custom" else { return ["error": "Unknown preset"] }
-            let created = addProfile(named: preset?["name"] ?? "OpenAI Compatible")
+            // 宿主在「自定义」预设上把本地化后的显示名放在 name 里，照原样命名新配置。
+            let created = addProfile(named: preset?["name"] ?? (values["name"] as? String) ?? "OpenAI Compatible")
             id = created.id
             if let url = preset?["url"] { setBaseURL(url, for: id) }
             if let model = preset?["model"] { selectLLMModel(model, for: id) }

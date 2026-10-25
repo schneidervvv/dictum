@@ -294,6 +294,67 @@ final class DictionaryService: ObservableObject {
         }
     }
 
+    /// 词典页「添加」的提交路径：没有「常被听成」写法时写入一个词项，
+    /// 否则每个写法写入一条纠正记录，全部写法一次保存。
+    /// 返回写入的条数；词已存在或所有写法重复时返回 0。
+    @discardableResult
+    func addWord(_ rawWord: String, heardAs rawCandidates: [String]) throws -> Int {
+        guard let context = modelContext else { throw DictionaryServiceMutationError.unavailable }
+        let word = rawWord.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !word.isEmpty else { return 0 }
+
+        var pending: [DictionaryEntry] = []
+        let now = Date()
+        if rawCandidates.isEmpty {
+            guard duplicateEntry(type: .term, original: word, isRegex: false) == nil else { return 0 }
+            pending.append(DictionaryEntry(
+                type: .term,
+                original: word,
+                source: .manual,
+                createdAt: now,
+                updatedAt: now
+            ))
+        } else {
+            let wordKey = word.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            var seenCandidateKeys = Set<String>()
+            for rawCandidate in rawCandidates {
+                let candidate = rawCandidate.trimmingCharacters(in: .whitespacesAndNewlines)
+                let candidateKey = candidate.folding(
+                    options: [.caseInsensitive, .diacriticInsensitive],
+                    locale: .current
+                )
+                guard !candidate.isEmpty,
+                      candidateKey != wordKey,
+                      seenCandidateKeys.insert(candidateKey).inserted,
+                      duplicateEntry(type: .correction, original: candidate, isRegex: false) == nil else {
+                    continue
+                }
+                pending.append(DictionaryEntry(
+                    type: .correction,
+                    original: candidate,
+                    replacement: word,
+                    caseSensitive: false,
+                    source: .manual,
+                    createdAt: now,
+                    updatedAt: now
+                ))
+            }
+        }
+        guard !pending.isEmpty else { return 0 }
+
+        pending.forEach(context.insert)
+        do {
+            try context.save()
+            loadEntries()
+            return pending.count
+        } catch {
+            context.rollback()
+            loadEntries()
+            logger.error("Failed to add word: \(error.localizedDescription)")
+            throw DictionaryServiceMutationError.saveFailed(error)
+        }
+    }
+
     @discardableResult
     func updateEntry(
         _ entry: DictionaryEntry,
