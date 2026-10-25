@@ -1019,7 +1019,8 @@ final class DictationViewModel: ObservableObject {
            let behavior = CancellationBehavior(rawValue: rawValue) {
             return behavior
         }
-        let requiresConfirmation = defaults.object(forKey: UserDefaultsKeys.requireSecondEscapeToCancelRecording) as? Bool ?? true
+        // 没有保存过选择的安装按一次 Esc 取消；旧版开关保存过的值是用户自己选的，照旧读取。
+        let requiresConfirmation = defaults.object(forKey: UserDefaultsKeys.requireSecondEscapeToCancelRecording) as? Bool ?? false
         return requiresConfirmation ? .doubleEscape : .singleEscape
     }
 
@@ -3372,6 +3373,9 @@ final class DictationViewModel: ObservableObject {
                     soundService.play(.error, enabled: soundFeedbackEnabled)
                     return
                 }
+
+                // 语音条的润色中、翻译中状态显示最终识别文字，替换录音时的预览。
+                partialText = text
 
                 let actionPluginId = self.effectiveActionPluginId
                 // An accepted physical submit survives a later browser URL workflow match.
