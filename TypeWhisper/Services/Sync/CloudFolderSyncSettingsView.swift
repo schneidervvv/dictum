@@ -81,9 +81,10 @@ final class CloudFolderSyncController: ObservableObject {
     @Published var statusMessage: String?
     @Published private(set) var needsSyncConsent = false
 
-    static var defaultICloudFolder: URL {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Mobile Documents/com~apple~CloudDocs/dictum", isDirectory: true)
+    static var defaultICloudFolder: URL { defaultICloudFolder(named: AppConstants.appSupportDirectoryName) }
+
+    static func defaultICloudFolder(named name: String, home: URL = FileManager.default.homeDirectoryForCurrentUser) -> URL {
+        home.appendingPathComponent("Library/Mobile Documents/com~apple~CloudDocs/\(name)", isDirectory: true)
     }
 
     var synchronizedRecordCount: Int { historyService?.recordCount() ?? 0 }
