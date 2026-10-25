@@ -34,7 +34,7 @@ struct StylePage: View {
                                     ForEach(NSWorkspace.shared.runningApplications.filter { $0.activationPolicy == .regular && $0.bundleIdentifier != nil }, id: \.processIdentifier) { app in
                                         Button { addApp(app.bundleURL) } label: {
                                             if let icon = app.icon { Image(nsImage: icon).resizable().frame(width: 16, height: 16) }
-                                            Text(verbatim: app.localizedName ?? app.bundleIdentifier ?? "")
+                                            Text(verbatim: AppStyle.displayName(of: app.localizedName ?? app.bundleIdentifier ?? ""))
                                         }
                                     }
                                 } header: { Text("Running", tableName: "DictumStyle") }
@@ -58,7 +58,7 @@ struct StylePage: View {
                                             }.frame(width: 66, alignment: .leading)
                                             if app.isBuiltIn {
                                                 Text(LocalizedStringKey(app.name), tableName: "DictumStyle").frame(width: 110, alignment: .leading)
-                                            } else { Text(verbatim: app.name).frame(width: 110, alignment: .leading) }
+                                            } else { Text(verbatim: app.displayName).frame(width: 110, alignment: .leading) }
                                             Text(summary(app)).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1)
                                             Spacer(minLength: 0)
                                             Image(systemName: expanded == app.id ? "chevron.down" : "chevron.right").foregroundStyle(.tertiary)
@@ -173,7 +173,7 @@ struct StylePage: View {
         guard let url, let bundle = Bundle(url: url), let id = bundle.bundleIdentifier,
               !store.apps.contains(where: { !$0.isBuiltIn && $0.bundleIDs.contains(id) }) else { return }
         let global = store.global
-        let app = AppStyle(id: UUID().uuidString, kind: .userApp, name: FileManager.default.displayName(atPath: url.path),
+        let app = AppStyle(id: UUID().uuidString, kind: .userApp, name: AppStyle.applicationName(at: url),
                            bundleIDs: [id], urlPatterns: [], formality: global.formality, tone: global.tone, emoji: global.emoji)
         store.apps.append(app)
         expanded = app.id
