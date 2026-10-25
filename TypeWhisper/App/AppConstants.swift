@@ -120,13 +120,11 @@ enum AppConstants {
 
     nonisolated(unsafe) static var testAppSupportDirectoryOverride: URL?
 
-    static let appSupportDirectoryName: String = {
-        #if DEBUG
-        return "dictum-Dev"
-        #else
-        return "dictum"
-        #endif
-    }()
+    static func dataFolderName(isDevelopment: Bool) -> String {
+        isDevelopment ? "dictum-Dev" : "dictum"
+    }
+
+    static let appSupportDirectoryName = dataFolderName(isDevelopment: isDevelopment)
 
     static let devSecretKeyPrefix = "com.schneidervvv.dictum.dev.apikey."
     static let releaseSecretKeyPrefix = "com.schneidervvv.dictum.apikey."

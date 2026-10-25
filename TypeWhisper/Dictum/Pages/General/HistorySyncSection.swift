@@ -16,8 +16,8 @@ struct HistorySyncSection: View {
                     .font(.caption).foregroundStyle(controller.errorMessage == nil ? .secondary : Color.red)
                 }
                 Spacer()
-                Toggle(isOn: Binding(get: { controller.mode != .off }, set: { enabled in
-                    if enabled { Task { await enableSync() } } else { confirmOff = true }
+                Toggle(isOn: Binding(get: { controller.isHistorySyncOn }, set: { enabled in
+                    if enabled { Task { await controller.enableHistorySync() } } else { confirmOff = true }
                 })) { Text("Sync to iCloud Drive", tableName: "DictumHistory") }
                 .labelsHidden().toggleStyle(.switch).controlSize(.mini).disabled(controller.isSyncing)
             }
@@ -69,10 +69,5 @@ struct HistorySyncSection: View {
         value.save()
         retention = value
         ServiceContainer.shared.historyService.applyRetention(value)
-    }
-
-    private func enableSync() async {
-        if controller.selectedFolderURL == nil { await controller.acceptDefaultSync() }
-        else { await controller.setHistorySyncEnabled(true); await controller.setMode(.cloudFolder) }
     }
 }
