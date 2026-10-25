@@ -219,11 +219,11 @@ final class VoiceBarLiveFixesTests: XCTestCase {
 
     func testCancelHintCopyExistsInBothLanguages() {
         XCTAssertEqual(
-            String(localized: LocalizedStringResource("Press esc again to cancel", table: "DictumHome", locale: Locale(identifier: "zh-Hans"))),
+            String(localized: LocalizedStringResource("Esc again to cancel", table: "DictumHome", locale: Locale(identifier: "zh-Hans"))),
             "再按一次 esc 取消")
         XCTAssertEqual(
-            String(localized: LocalizedStringResource("Press esc again to cancel", table: "DictumHome", locale: Locale(identifier: "en"))),
-            "Press esc again to cancel")
+            String(localized: LocalizedStringResource("Esc again to cancel", table: "DictumHome", locale: Locale(identifier: "en"))),
+            "Esc again to cancel")
     }
 
     // MARK: - 菜单栏状态行

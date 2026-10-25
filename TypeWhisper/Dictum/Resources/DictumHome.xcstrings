@@ -89,7 +89,7 @@
     "Accessibility access needed": {"localizations":{"en":{"stringUnit":{"state":"translated","value":"Accessibility access needed"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"需要辅助功能权限"}}}},
     "Dictating": {"localizations":{"en":{"stringUnit":{"state":"translated","value":"Dictating"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"正在听写"}}}},
     "menu.status.translating": {"localizations":{"en":{"stringUnit":{"state":"translated","value":"Translating"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"正在翻译"}}}},
-    "Press esc again to cancel": {"localizations":{"en":{"stringUnit":{"state":"translated","value":"Press esc again to cancel"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"再按一次 esc 取消"}}}},
+    "Esc again to cancel": {"localizations":{"en":{"stringUnit":{"state":"translated","value":"Esc again to cancel"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"再按一次 esc 取消"}}}},
     "Finish Dictation": {"localizations":{"en":{"stringUnit":{"state":"translated","value":"Finish Dictation"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"结束听写"}}}},
     "Start Dictation": {"localizations":{"en":{"stringUnit":{"state":"translated","value":"Start Dictation"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"开始听写"}}}},
     "Start Translation": {"localizations":{"en":{"stringUnit":{"state":"translated","value":"Start Translation"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"开始翻译"}}}},

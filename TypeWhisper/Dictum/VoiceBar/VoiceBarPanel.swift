@@ -626,7 +626,7 @@ struct VoiceBarView: View {
         }.frame(height: 22).mask(LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .white, location: 0.22), .init(color: .white, location: 1)], startPoint: .leading, endPoint: .trailing)).accessibilityHidden(true)
     }
     private var cancelHint: some View {
-        Text("Press esc again to cancel", tableName: "DictumHome")
+        Text("Esc again to cancel", tableName: "DictumHome")
             .font(.system(size: 12.5)).foregroundStyle(.white.opacity(0.85)).lineLimit(1).minimumScaleFactor(0.8)
     }
     /// 提示占用波形的位置（127.5pt 宽），语音条的宽度不变。
