@@ -72,6 +72,7 @@ final class PostProcessingPipeline {
         // counted at most once per dictation, and the pre-LLM pass counts only if processing
         // completes (a cancellation inserts no text).
         var correctionUsage = CorrectionUsageLedger()
+        var preLLMCorrection: (input: String, output: String)?
 
         func stepName(for id: Int) -> String {
             switch id {
@@ -105,6 +106,7 @@ final class PostProcessingPipeline {
                         deferUsageCountSave: deferUsageCountSaves,
                         correctionUsage: &correctionUsage
                     )
+                    if id == -8 { preLLMCorrection = (before, result) }
                 default:
                     result = try await plugins[step.id].process(text: result, context: context)
                 }
@@ -121,13 +123,18 @@ final class PostProcessingPipeline {
                     }
 
                     guard fallsBackOnLLMFailure else { throw error }
-                    // 后面的文本片段、词典纠正和时间格式照常处理 AI 步骤收到的文字，插入的原文同样经过它们。
+                    // 后面的文本片段、词典纠正和时间格式照常处理插入的原文。原文从 AI 步骤前的词典纠正之前继续，
+                    // 与没有 AI 步骤的听写一样只纠正一次：一条纠正的结果是另一条纠正的原词时，第二次纠正会接着替换。
                     logger.warning("Continuing without post-processing step '\(name)' after it failed")
                     fallback = PostProcessingFallback(
                         failedStep: name,
                         reason: error.localizedDescription,
                         llmInput: before
                     )
+                    if let preLLMCorrection, preLLMCorrection.output == before {
+                        result = preLLMCorrection.input
+                        correctionUsage.provisionalIDs = []
+                    }
                 }
             }
         }
@@ -190,7 +197,7 @@ final class PostProcessingPipeline {
     }
 
     /// 对 `process` 之外得到的模型结果（语音条重试）运行 AI 步骤之后的内置步骤：文本片段、词典纠正和时间格式。
-    /// 与 `textBeforeLLMStep` 相同，不运行插件。
+    /// 与 `textBeforeLLMStep` 相同，不运行插件。这次听写插入原文时已经计入了文本片段和词典纠正的用量，这里不计数。
     func textAfterLLMStep(
         _ text: String,
         context: PostProcessingContext,
@@ -202,17 +209,31 @@ final class PostProcessingPipeline {
         var result = text
         var correctionUsage = CorrectionUsageLedger()
         for step in steps where step.priority > Self.llmStepPriority {
-            result = applyBuiltInStep(
-                step.id,
-                to: result,
-                context: context,
-                dictationContext: dictationContext,
-                outputFormat: outputFormat,
-                normalizeNumbers: normalizeNumbers,
-                correctionUsage: &correctionUsage
-            )
+            switch step.id {
+            case -2:
+                result = applySnippetsWithoutCountingUsage(to: result)
+            case -3:
+                result = dictionaryService.previewCorrections(to: result)
+            default:
+                result = applyBuiltInStep(
+                    step.id,
+                    to: result,
+                    context: context,
+                    dictationContext: dictationContext,
+                    outputFormat: outputFormat,
+                    normalizeNumbers: normalizeNumbers,
+                    correctionUsage: &correctionUsage
+                )
+            }
         }
         return result
+    }
+
+    /// `SnippetService.applySnippets` 总是计入用量，替换后恢复替换前的计数。
+    private func applySnippetsWithoutCountingUsage(to text: String) -> String {
+        let usageCounts = snippetService.snippets.map { ($0, $0.usageCount) }
+        defer { for (snippet, count) in usageCounts { snippet.usageCount = count } }
+        return snippetService.applySnippets(to: text, deferUsageCountSave: true)
     }
 
     private static let llmStepPriority = 300
