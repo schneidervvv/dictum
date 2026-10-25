@@ -295,6 +295,9 @@ final class DictationViewModel: ObservableObject {
             clearRejectedShortcutWarningIfStateNoLongerMatches()
             if state != .recording, state != .processing {
                 modelManager.endDictationModelPrewarm()
+                startPendingCancelledRecordingSave()
+            } else {
+                cancelledRecordingSaveTask?.cancel()
             }
         }
     }
@@ -308,6 +311,8 @@ final class DictationViewModel: ObservableObject {
     private var cancelledRecordingTask: Task<Void, Never>?
     private var cancelledRecordingRestoreTask: Task<Void, Never>?
     private var cancelledRecordingSaveTask: Task<Void, Never>?
+    /// 取消窗口结束、等待保存为已取消记录的录音，保存或确定无法保存后才移出。
+    private var pendingCancelledRecordings: [PendingCancelledRecording] = []
     private var cancelledSessionID: UUID?
     /// 取消时的会话信息，取消窗口结束后保存已取消的历史记录时使用。
     private struct CancelledSession {
@@ -319,6 +324,13 @@ final class DictationViewModel: ObservableObject {
         let task: TranscriptionTask
         let engineOverrideId: String?
         let cloudModelOverride: String?
+    }
+    private struct PendingCancelledRecording {
+        let id = UUID()
+        let samples: [Float]
+        let recoveryURL: URL?
+        let session: CancelledSession
+        let clearGeneration: Int
     }
     var voiceBarUndeliveredText: String? {
         guard case .insertUndeliveredTranscript(let transcript)? = actionFeedbackAction else { return nil }
@@ -1700,6 +1712,7 @@ final class DictationViewModel: ObservableObject {
                 self.pendingHotkeyDictationStart = nil
                 self.pendingHotkeyStartTask?.cancel()
                 self.pendingHotkeyStartTask = nil
+                self.startPendingCancelledRecordingSave()
                 return
             }
             self.stopDictation()
@@ -2000,77 +2013,110 @@ final class DictationViewModel: ObservableObject {
         }
     }
 
-    /// 取消窗口结束后，在后台用当前识别引擎转写这段录音并做词典纠正，保存为已取消的历史记录；不润色、不插入，没有声音和语音条。
-    /// 记录保存后才删除恢复录音。历史关闭、转写失败或没有识别出文字时，恢复录音留在「高级设置 → 听写恢复」。
+    /// 取消窗口结束后，这段录音排队等待保存为已取消的历史记录。历史关闭时不保存，恢复录音留在「高级设置 → 听写恢复」。
     private func saveCancelledRecording(samples: [Float], recoveryURL: URL?, session: CancelledSession) {
         let historyEnabled = UserDefaults.standard.object(forKey: UserDefaultsKeys.historyEnabled) as? Bool ?? true
-        let retention = HistoryRetention.selected()
-        guard historyEnabled, retention != .never, !samples.isEmpty || recoveryURL != nil else { return }
-        let clearGeneration = historyService.clearGeneration
-        let previousSave = cancelledRecordingSaveTask
+        guard historyEnabled, HistoryRetention.selected() != .never, !samples.isEmpty || recoveryURL != nil else { return }
+        pendingCancelledRecordings.append(PendingCancelledRecording(
+            samples: samples, recoveryURL: recoveryURL, session: session, clearGeneration: historyService.clearGeneration
+        ))
+        startPendingCancelledRecordingSave()
+    }
+
+    /// 本地识别引擎同一时间只运行一次识别，后台转写会推迟下一次听写的实时文字和结果。
+    /// 所以排队的录音只在没有听写录音、处理或排队开始时转写；新的听写开始时取消转写（`state` 的 didSet），听写结束后重新转写。
+    private func startPendingCancelledRecordingSave() {
+        guard cancelledRecordingSaveTask == nil, state != .recording, state != .processing,
+              pendingHotkeyDictationStart == nil,
+              let pending = pendingCancelledRecordings.first else { return }
         cancelledRecordingSaveTask = Task { [weak self] in
-            await previousSave?.value
             guard let self else { return }
-            do {
-                let audio = if samples.isEmpty, let recoveryURL {
-                    try await ServiceContainer.shared.audioFileService.loadAudioSamples(from: recoveryURL)
-                } else {
-                    samples
-                }
-                let providerId = session.engineOverrideId ?? modelManager.selectedProviderId
-                let result = try await modelManager.transcribe(
-                    audioSamples: audio,
-                    languageSelection: session.languageSelection,
-                    task: session.task,
-                    engineOverrideId: session.engineOverrideId,
-                    cloudModelOverride: session.cloudModelOverride,
-                    prompt: dictionaryService.getTermsForPrompt(providerId: providerId),
-                    dictionaryTermHints: dictionaryService.getTermHints(providerId: providerId)
-                )
-                let text = dictionaryService.previewCorrections(
-                    to: result.text.trimmingCharacters(in: .whitespacesAndNewlines)
-                )
-                guard !text.isEmpty else {
-                    logger.info("Cancelled recording kept for recovery: no speech recognized")
-                    return
-                }
-                let recordID = UUID()
-                let keepAudio = UserDefaults.standard.object(forKey: UserDefaultsKeys.saveAudioWithHistory) as? Bool ?? true
-                let audioFileName = keepAudio
-                    ? await historyService.writeAudioFileInBackground(audio, forRecordID: recordID)
-                    : nil
-                let saved = historyService.addRecord(
-                    id: recordID,
-                    timestamp: session.timestamp,
-                    rawText: text,
-                    finalText: text,
-                    appName: session.app?.name,
-                    appBundleIdentifier: session.app?.bundleId,
-                    appURL: session.app?.url,
-                    durationSeconds: Double(audio.count) / AudioRecordingService.targetSampleRate,
-                    language: result.detectedLanguage ?? session.languageSelection.requestedLanguage,
-                    engineUsed: result.engineUsed,
-                    modelUsed: modelManager.resolvedModelDisplayName(
-                        engineOverrideId: session.engineOverrideId,
-                        cloudModelOverride: session.cloudModelOverride
-                    ),
-                    audioFileName: audioFileName,
-                    translation: session.mode == .translation
-                        ? session.pair.map {
-                            HistoryTranslationInfo(spokenLanguage: $0.spoken ?? result.detectedLanguage, targetLanguage: $0.target)
-                        }
-                        : nil,
-                    cancelled: true,
-                    capturedInClearGeneration: clearGeneration
-                )
-                guard saved else { return }
-                historyService.applyRetention(retention)
-                if let recoveryURL {
-                    audioRecordingService.discardRecoveryRecording(at: recoveryURL)
-                }
-            } catch {
-                logger.error("Cancelled recording kept for recovery: \(error.localizedDescription, privacy: .public)")
+            let finished = await self.transcribeAndSaveCancelledRecording(pending)
+            self.cancelledRecordingSaveTask = nil
+            if finished { self.pendingCancelledRecordings.removeAll { $0.id == pending.id } }
+            // 应用退出时识别门关闭，转写同样以取消结束，这时等下一次空闲再开始。
+            if finished || Task.isCancelled { self.startPendingCancelledRecordingSave() }
+        }
+    }
+
+    /// 用当前识别引擎转写已取消的录音并做词典纠正，保存为已取消的历史记录；不润色、不插入，没有声音和语音条。
+    /// 记录保存后才删除恢复录音；转写失败或没有识别出文字时，恢复录音留在「高级设置 → 听写恢复」。
+    /// 转写被取消时返回 false，录音留在队列里。
+    private func transcribeAndSaveCancelledRecording(_ pending: PendingCancelledRecording) async -> Bool {
+        let session = pending.session
+        do {
+            try Task.checkCancellation()
+            let audio = if pending.samples.isEmpty, let recoveryURL = pending.recoveryURL {
+                try await ServiceContainer.shared.audioFileService.loadAudioSamples(from: recoveryURL)
+            } else {
+                pending.samples
             }
+            let providerId = session.engineOverrideId ?? modelManager.selectedProviderId
+            let result = try await modelManager.transcribe(
+                audioSamples: audio,
+                languageSelection: session.languageSelection,
+                task: session.task,
+                engineOverrideId: session.engineOverrideId,
+                cloudModelOverride: session.cloudModelOverride,
+                prompt: dictionaryService.getTermsForPrompt(providerId: providerId),
+                dictionaryTermHints: dictionaryService.getTermHints(providerId: providerId)
+            )
+            let text = dictionaryService.previewCorrections(
+                to: result.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            )
+            guard !text.isEmpty else {
+                logger.info("Cancelled recording kept for recovery: no speech recognized")
+                return true
+            }
+            if let recoveryURL = pending.recoveryURL, !DictationRecoveryRecordingClaims.claim(recoveryURL) {
+                logger.info("Cancelled recording already restored from Dictation Recovery")
+                return true
+            }
+            let recordID = UUID()
+            let keepAudio = UserDefaults.standard.object(forKey: UserDefaultsKeys.saveAudioWithHistory) as? Bool ?? true
+            let audioFileName = keepAudio
+                ? await historyService.writeAudioFileInBackground(audio, forRecordID: recordID)
+                : nil
+            let saved = historyService.addRecord(
+                id: recordID,
+                timestamp: session.timestamp,
+                rawText: text,
+                finalText: text,
+                appName: session.app?.name,
+                appBundleIdentifier: session.app?.bundleId,
+                appURL: session.app?.url,
+                durationSeconds: Double(audio.count) / AudioRecordingService.targetSampleRate,
+                language: result.detectedLanguage ?? session.languageSelection.requestedLanguage,
+                engineUsed: result.engineUsed,
+                modelUsed: modelManager.resolvedModelDisplayName(
+                    engineOverrideId: session.engineOverrideId,
+                    cloudModelOverride: session.cloudModelOverride
+                ),
+                audioFileName: audioFileName,
+                translation: session.mode == .translation
+                    ? session.pair.map {
+                        HistoryTranslationInfo(spokenLanguage: $0.spoken ?? result.detectedLanguage, targetLanguage: $0.target)
+                    }
+                    : nil,
+                cancelled: true,
+                capturedInClearGeneration: pending.clearGeneration
+            )
+            guard saved else {
+                if let recoveryURL = pending.recoveryURL { DictationRecoveryRecordingClaims.release(recoveryURL) }
+                return true
+            }
+            historyService.applyRetention(HistoryRetention.selected())
+            if let recoveryURL = pending.recoveryURL {
+                audioRecordingService.discardRecoveryRecording(at: recoveryURL)
+            }
+            return true
+        } catch {
+            if Task.isCancelled || isPostProcessingCancellation(error) {
+                logger.info("Cancelled recording transcription stopped; kept for a later attempt")
+                return false
+            }
+            logger.error("Cancelled recording kept for recovery: \(error.localizedDescription, privacy: .public)")
+            return true
         }
     }
 
@@ -4343,7 +4389,11 @@ final class DictationViewModel: ObservableObject {
         pendingHotkeyStartTask = Task { @MainActor [weak self] in
             await Task.yield()
             guard !Task.isCancelled, let self else { return }
-            defer { self.pendingHotkeyStartTask = nil }
+            defer {
+                self.pendingHotkeyStartTask = nil
+                // 排队的听写没有开始时，等待中的已取消录音现在转写。
+                self.startPendingCancelledRecordingSave()
+            }
             guard self.state == .idle,
                   let pendingHotkeyStart = self.pendingHotkeyDictationStart else {
                 self.pendingHotkeyDictationStart = nil
