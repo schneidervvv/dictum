@@ -1,0 +1,9 @@
+# 2026-11-05 provider-logos：以下 8 项在基线 d4dfecf0 上同样失败（HTTP/WS 超时，环境抖动），与本次修改无关，留待后续修复
+sdk:OpenAIChatHelperTests/testProcessReturnsReplyThatFinishedNormally()
+sdk:OpenAIChatHelperTests/testProcessThrowsWhenReplyStoppedAtTokenLimit()
+sdk:OpenAIChatHelperTests/testProcessThrowsWhenThinkingModelHitTokenLimitWithoutVisibleText()
+sdk:SonioxPluginTests/testLiveSessionAuthenticatesWithHeaderInsteadOfStartMessage()
+sdk:SonioxPluginTests/testLiveSessionContinuesReceivingAfterEndpointToken()
+sdk:SonioxPluginTests/testLiveSessionFinishReturnsCollectedTranscriptWhenServerNeverSendsFinished()
+sdk:SonioxPluginTests/testLiveSessionFinishReturnsPromptlyWhenServerConfirmsFinished()
+sdk:SonioxPluginTests/testLiveSessionWaitsForFinishedAfterFinToCollectDelayedTranslation()

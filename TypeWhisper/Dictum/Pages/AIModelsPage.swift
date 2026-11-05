@@ -62,7 +62,8 @@ struct AIModelsPage: View {
                 ForEach(ProviderConfiguration.choices) { choice in
                     Button { add(choice) } label: {
                         HStack(spacing: 9) {
-                            tile(choice.name, size: 22)
+                            ProviderLogoTile(asset: ProviderLogo.asset(providerId: choice.id),
+                                             fallbackSymbol: ProviderLogo.languageModelFallbackSymbol, size: 22)
                             Text(verbatim: choice.name).font(.system(size: 12))
                             Spacer(minLength: 0)
                         }.padding(.horizontal, 10).frame(maxWidth: .infinity, minHeight: 44)
@@ -81,7 +82,7 @@ struct AIModelsPage: View {
                         Image(systemName: "line.3.horizontal").font(.system(size: 10)).foregroundStyle(.tertiary)
                             .opacity(hoveredProvider == item.id ? 1 : 0)
                         Text(verbatim: "\(index + 1)").foregroundStyle(.secondary).frame(width: 14)
-                        tile(name(item), size: 28)
+                        logo(item, size: 28)
                         VStack(alignment: .leading, spacing: 3) {
                             Text(verbatim: name(item)).lineLimit(1)
                             Text(verbatim: item.modelId ?? processing.defaultModelId(for: item.providerId) ?? "")
@@ -108,7 +109,7 @@ struct AIModelsPage: View {
     private func detail(_ item: LLMFallbackPriorityItem) -> some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack(spacing: 12) {
-                tile(name(item), size: 40)
+                logo(item, size: 40)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(verbatim: name(item)).font(.headline)
                     let index = processing.fallbackPriorityList.firstIndex { $0.id == item.id } ?? 0
@@ -225,17 +226,9 @@ struct AIModelsPage: View {
         }
     }
 
-    private func tile(_ name: String, size: CGFloat) -> some View {
-        Text(verbatim: String(name.prefix(1))).font(.system(size: size * 0.5, weight: .semibold))
-            .foregroundStyle(.white).frame(width: size, height: size)
-            .background(tileColor(name), in: RoundedRectangle(cornerRadius: 7))
-    }
-    private func tileColor(_ name: String) -> Color {
-        let colors: [String: Color] = ["DeepSeek": Color(red: 0.30, green: 0.42, blue: 1),
-            "Anthropic": Color(red: 0.85, green: 0.47, blue: 0.34), "Groq": .orange,
-            "Gemini": .blue, "通义千问": .purple, "Qwen": .purple, "智谱": .blue, "Zhipu": .blue,
-            "硅基流动": .purple, "SiliconFlow": .purple, "OpenRouter": .gray]
-        return colors[name] ?? Color(white: 0.1)
+    private func logo(_ item: LLMFallbackPriorityItem, size: CGFloat) -> some View {
+        ProviderLogoTile(asset: ProviderLogo.asset(providerId: item.providerId),
+                         fallbackSymbol: ProviderLogo.languageModelFallbackSymbol, size: size)
     }
     private func name(_ item: LLMFallbackPriorityItem) -> String {
         plugins.llmProvider(for: item.providerId).map(ProviderConfiguration.displayName) ?? item.providerId
