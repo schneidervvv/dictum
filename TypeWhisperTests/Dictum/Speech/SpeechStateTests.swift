@@ -55,6 +55,18 @@ final class SpeechStateTests: XCTestCase {
             readinessError: nil, hasMissingModel: true, engine: "Qwen3"), .downloadFailed)
     }
 
+    @MainActor
+    func testDownloadSpeedTextShowsMegabytesPerSecondOnlyWhenSpeedIsKnown() throws {
+        let measured = DownloadedModelsTestEngine(downloaded: [], selected: "8bit", completedBytes: 1_000_000,
+                                                  bytesPerSecond: 3_200_000)
+        let expected = ByteCountFormatter.string(fromByteCount: 3_200_000, countStyle: .file) + "/s"
+        XCTAssertEqual(try XCTUnwrap(SpeechDownloadProgress(engine: measured)).speedText, expected)
+        XCTAssertTrue(expected.hasSuffix("MB/s"))
+
+        let unknown = DownloadedModelsTestEngine(downloaded: [], selected: "8bit", completedBytes: 1_000_000)
+        XCTAssertNil(try XCTUnwrap(SpeechDownloadProgress(engine: unknown)).speedText)
+    }
+
     func testPreviewConfirmsOnlyTheSharedPrefixIncludingChineseAndCorrections() {
         XCTAssertEqual(StreamingHandler.Preview.comparing(previous: "", current: "明天下午"),
                        .init(confirmedPrefix: "", tentativeTail: "明天下午"))

@@ -10,17 +10,20 @@ final class DownloadedModelsTestEngine: NSObject, TranscriptionEnginePlugin,
     var downloadedModels: [PluginModelInfo]
     var selectedModelId: String?
     let completedBytes: Int64
+    let bytesPerSecond: Double?
 
     required override init() {
         downloadedModels = []
         completedBytes = 0
+        bytesPerSecond = nil
         super.init()
     }
 
-    init(downloaded: [String], selected: String?, completedBytes: Int64 = 0) {
+    init(downloaded: [String], selected: String?, completedBytes: Int64 = 0, bytesPerSecond: Double? = nil) {
         downloadedModels = downloaded.map { PluginModelInfo(id: $0, displayName: $0) }
         selectedModelId = selected
         self.completedBytes = completedBytes
+        self.bytesPerSecond = bytesPerSecond
     }
 
     func activate(host: HostServices) {}
@@ -37,7 +40,10 @@ final class DownloadedModelsTestEngine: NSObject, TranscriptionEnginePlugin,
     func selectModel(_ modelId: String) { selectedModelId = modelId }
 
     @objc var speechDownloadDetails: NSDictionary {
-        ["completedBytes": NSNumber(value: completedBytes), "totalBytes": NSNumber(value: Int64(2_463_307_541))]
+        var details: [String: Any] = ["completedBytes": NSNumber(value: completedBytes),
+                                      "totalBytes": NSNumber(value: Int64(2_463_307_541))]
+        if let bytesPerSecond { details["bytesPerSecond"] = NSNumber(value: bytesPerSecond) }
+        return details as NSDictionary
     }
 
     func download(_ modelId: String) {}

@@ -5,6 +5,7 @@ struct SpeechDownloadProgress {
     let completedBytes: Int64
     let totalBytes: Int64
     let remainingSeconds: Double?
+    let bytesPerSecond: Double?
 
     init?(engine: any TranscriptionEnginePlugin) {
         let selector = NSSelectorFromString("speechDownloadDetails")
@@ -15,6 +16,13 @@ struct SpeechDownloadProgress {
         completedBytes = completed.int64Value
         totalBytes = total.int64Value
         remainingSeconds = (values["remainingSeconds"] as? NSNumber)?.doubleValue
+        bytesPerSecond = (values["bytesPerSecond"] as? NSNumber)?.doubleValue
+    }
+
+    /// 例如 `3.2 MB/s`；没有可用的速度时为 nil。
+    var speedText: String? {
+        guard let bytesPerSecond, bytesPerSecond.isFinite, bytesPerSecond > 0 else { return nil }
+        return ByteCountFormatter.string(fromByteCount: Int64(bytesPerSecond), countStyle: .file) + "/s"
     }
 
     /// 下载失败后按设计显示已下载的大小；失败后插件仍保留字节计数。

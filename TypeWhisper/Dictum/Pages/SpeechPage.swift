@@ -168,9 +168,11 @@ private struct SpeechSettingsForm: View {
                     let details = SpeechDownloadProgress(engine: engine)
                     Text(verbatim: progress.formatted(.percent.precision(.fractionLength(0))) + (details.map { " · " + $0.byteCounts } ?? ""))
                         .font(.system(size: 11)).lineLimit(1)
-                    if let seconds = details?.remainingSeconds, seconds.isFinite {
-                        Text(String(localized: "About \(max(1, Int(ceil(seconds / 60)))) min", table: "DictumSpeech"))
-                            .font(.system(size: 11)).foregroundStyle(DictumTheme.textTertiary)
+                    let remaining = details?.remainingSeconds.flatMap { $0.isFinite
+                        ? String(localized: "About \(max(1, Int(ceil($0 / 60)))) min", table: "DictumSpeech") : nil }
+                    let timing = [details?.speedText, remaining].compactMap { $0 }.joined(separator: " · ")
+                    if !timing.isEmpty {
+                        Text(verbatim: timing).font(.system(size: 11)).lineLimit(1).foregroundStyle(DictumTheme.textTertiary)
                     }
                 } else { Text("Preparing model", tableName: "DictumSpeech").font(.system(size: 11)) }
             }.frame(width: 150)
