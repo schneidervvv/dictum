@@ -83,6 +83,11 @@ struct DictumOnboardingView: View {
                 }
                 if new == OnboardingStep.sync { syncOn = syncStep.initialSwitch }
             }
+            // 用户点过输入框以外的地方后，文字会插入到没有焦点的窗口而丢失，练习永远不会完成。
+            .onChange(of: dictation.state) { _, new in
+                guard step == OnboardingStep.dictationPractice || step == OnboardingStep.translationPractice else { return }
+                if new == .recording || new == .processing { practiceFocused = true }
+            }
             .onReceive(Timer.publish(every: 0.1, on: .main, in: .common).autoconnect()) { _ in
                 microphone = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
                 accessibility = AXIsProcessTrusted()
