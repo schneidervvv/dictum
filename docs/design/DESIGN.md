@@ -105,7 +105,7 @@ Played by `SoundService`, all gated by the General → Sounds → "Interaction s
 - `WindowGroup` with a single main window. Default size 1040 × 680, minimum 860 × 560. Title bar is hidden and merged (`.windowStyle(.hiddenTitleBar)`, `.toolbar` with `.navigationTitle`), traffic lights sit over the sidebar.
 - `NavigationSplitView` with a fixed 212pt sidebar (`.navigationSplitViewColumnWidth(212)`), not collapsible in V0.1.0.
 - Every page has a 52pt toolbar row: page title on the left (15 semibold), page actions on the right.
-- Closing the window keeps dictum running in the menu bar. Dock icon is hidden by default (General → App → "Show in Dock").
+- Closing the window keeps dictum running in the menu bar. Dock icon is shown by default and can be hidden in General → App → "Show in Dock".
 
 ### 3.2 Sidebar
 

@@ -178,4 +178,25 @@ final class AppFormatterServiceTests: XCTestCase {
             DictationRecoveryRetentionPolicy.thirtyDays.rawValue
         )
     }
+
+    @MainActor
+    func testShowInDockDefaultsToOnAndKeepsSavedChoice() {
+        let freshName = #function + ".fresh"
+        let savedName = #function + ".saved"
+        let fresh = UserDefaults(suiteName: freshName)!
+        let saved = UserDefaults(suiteName: savedName)!
+        fresh.removePersistentDomain(forName: freshName)
+        saved.removePersistentDomain(forName: savedName)
+        defer {
+            fresh.removePersistentDomain(forName: freshName)
+            saved.removePersistentDomain(forName: savedName)
+        }
+        saved.set(false, forKey: UserDefaultsKeys.dictumShowInDock)
+
+        AppDelegate.registerDefaultUserDefaults(fresh)
+        AppDelegate.registerDefaultUserDefaults(saved)
+
+        XCTAssertTrue(fresh.bool(forKey: UserDefaultsKeys.dictumShowInDock))
+        XCTAssertFalse(saved.bool(forKey: UserDefaultsKeys.dictumShowInDock))
+    }
 }

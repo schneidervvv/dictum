@@ -702,6 +702,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     static func registerDefaultUserDefaults(_ defaults: UserDefaults = .standard) {
         defaults.register(defaults: [
             UserDefaultsKeys.showMenuBarIcon: true,
+            UserDefaultsKeys.dictumShowInDock: true,
             UserDefaultsKeys.dockIconBehaviorWhenMenuBarHidden: DockIconBehavior.keepVisible.rawValue,
             UserDefaultsKeys.appFormattingEnabled: true,
             UserDefaultsKeys.stripFinalPeriodFromStandaloneValuesEnabled: true,
