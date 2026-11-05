@@ -109,7 +109,7 @@ Played by `SoundService`, all gated by the General → Sounds → "Interaction s
 
 ### 3.2 Sidebar
 
-Order is fixed. SF Symbols in parentheses.
+Order is fixed. SF Symbols in parentheses. The sidebar has two modes. The main mode lists items 1–4 and a `设置` / Settings button (`gearshape`) pinned directly above the status row; clicking it opens General and switches the sidebar to the settings mode. The settings mode replaces the list with a back row (`chevron.left`, `设置` / Settings, accessibility label `返回` / Back) followed by items 5–7; the back row returns to the main mode and opens Home. Opening a settings page by any other route (⌘, the status row, the menu bar) also switches to the settings mode. ⌘1 … ⌘7 work in both modes.
 
 | # | zh-Hans | English | Symbol | Prototype |
 |---|---|---|---|---|
@@ -117,12 +117,11 @@ Order is fixed. SF Symbols in parentheses.
 | 2 | 历史 | History | `clock` | history.html |
 | 3 | 词典 | Dictionary | `book` | dictionary.html |
 | 4 | 风格 | Style | `wand.and.sparkles` | style.html |
-| | *section* 设置 | *section* Settings | | |
 | 5 | 通用 | General | `gearshape` | settings-general.html |
 | 6 | 语音识别 | Speech | `waveform` | settings-models.html |
 | 7 | AI 模型 | AI Models | `sparkles` | settings-providers.html |
 
-The selected item tints its symbol with `accent`. A status row is pinned to the bottom of the sidebar: a 7pt dot, a short label, and the engine name in caption style. Clicking it opens Speech. States:
+The selected item tints its symbol with `accent`. A status row is pinned to the bottom of the sidebar in both modes: a 7pt dot, a short label, and the engine name in caption style. Clicking it opens Speech. States:
 
 | State | Dot | zh-Hans | English | Right caption |
 |---|---|---|---|---|
@@ -319,7 +318,7 @@ Format numbers with the user's locale. Durations: under 1 hour show `42 分钟` 
 **Layout.** Max width 760, centered.
 
 1. **Global style card.** Two columns. Left: four rows with separators: `正式程度` segmented (随意 / 适中 / 正式), `语气` segmented (温和 / 直接 / 热情), `表情符号` segmented (不用 / 偶尔 / 常用), `署名` text field (180pt). Right, 300pt, `inset` background: `你说` with a raw spoken sample, `dictum 写出` with the output in a raised well. The output updates 120 ms after any control changes, with a quick opacity dip.
-2. **Per-app section.** Header `按应用` with a small `添加应用` button that opens a menu of running apps plus `从“应用程序”中选择…`. A card of rows; each row: stacked app icons (up to 4, overlapping by 6pt), name, a one-line summary (`正式 · 温和 · 不用表情 · 署名 · {extra}`), chevron. Clicking a row expands it in place: the same three segmented controls, `结尾加署名` switch, a `补充要求` text area (placeholder `补充要求，例如：多用列表`), and a footer with `内置：N 个应用` and `恢复默认` (built-in) or `移除` (user-added). The expanded row shows its own `示例` preview on the right.
+2. **Per-app section.** Header `按应用` with a small `添加应用` button that opens a menu of running apps plus `从“应用程序”中选择…`. A card of rows; each row: stacked app icons (up to 4, overlapping by 6pt; a row with no installed app shows one 20pt rounded tile with a group symbol: `bubble.left.fill`, `envelope.fill`, `doc.text.fill`, `chevron.left.forwardslash.chevron.right`, `app.fill` for a user app), name, a one-line summary (`正式 · 温和 · 不用表情 · 署名 · {extra}`), chevron. Clicking a row expands it in place: the same three segmented controls, `结尾加署名` switch, a `补充要求` text area (placeholder `补充要求，例如：多用列表`), and a footer with `内置：N 个应用` and `恢复默认` (built-in) or `移除` (user-added). The expanded row shows its own `示例` preview on the right.
 
 **Built-in groups** (shipped defaults, editable, cannot be removed):
 
@@ -404,7 +403,7 @@ Apps not covered use the global style. A per-app row wins over a group that cont
 **Layout.** Grouped form, max width 620.
 
 1. **本机 On this Mac.** A radio row for `Qwen3-ASR 1.7B` with a `推荐` badge and subtitle `中英混说准确，不联网也能用 · 3.4 GB`. Right side by state (table below). Indented row `精度` popup (`8-bit · 更快` / `bf16 · 更准`; phase 1 decides the default). Disclosure `更多本机模型` reveals Whisper Large v3 Turbo and Parakeet TDT 0.6B rows with `下载` buttons.
-2. **云端 Cloud.** Radio rows for cloud ASR providers with a status badge (`未配置` neutral, `已连接` success, `密钥无效` danger). Clicking an unconfigured row expands an inline key row: secure field `粘贴 {provider} API 密钥` and `测试并使用`. Footer: `使用云端识别时，录音会发送给所选服务商。`
+2. **云端 Cloud.** Radio rows for configured cloud ASR providers with a status badge (`已连接` success, `密钥无效` danger). Unconfigured providers sit in one disclosure row `未配置的供应商（{n}）`, collapsed by default; with nothing configured the section shows only that row. Inside it each row carries a `未配置` neutral badge. Clicking an unconfigured row expands an inline key row: secure field `粘贴 {provider} API 密钥` and `测试并使用`. Footer: `使用云端识别时，录音会发送给所选服务商。`
 3. **识别 Recognition.** `说话语言` popup (自动检测 / 中文 / English / …), `说话时显示文字` switch (streaming preview on the voice bar, default on).
 
 **Qwen3 row states.**
@@ -432,6 +431,7 @@ Apps not covered use the global style. A per-app row wins over a group that cont
 | 精度：8-bit · 更快 / bf16 · 更准 | Precision: 8-bit · Faster / bf16 · More accurate |
 | 更多本机模型 | More local models |
 | 未配置 / 已连接 / 密钥无效 | Not set up / Connected / Invalid key |
+| 未配置的供应商（{n}） | Providers not set up ({n}) |
 | 粘贴 {provider} API 密钥 / 测试并使用 | Paste {provider} API key / Test and Use |
 | 使用云端识别时，录音会发送给所选服务商。 | With cloud recognition, audio is sent to the provider you choose. |
 | 现在没有网络，云端识别暂时不可用。 | You're offline. Cloud recognition is unavailable. |

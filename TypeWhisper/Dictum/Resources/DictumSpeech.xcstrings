@@ -1,6 +1,7 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Providers not set up (%lld)": { "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Providers not set up (%lld)" } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "未配置的供应商（%lld）" } } } },
     "About %lld min": { "localizations": { "en": { "stringUnit": { "state": "translated", "value": "About %lld min" } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "约 %lld 分钟" } } } },
     "On this Mac": { "localizations": { "en": { "stringUnit": { "state": "translated", "value": "On this Mac" } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "本机" } } } },
     "Cloud": { "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Cloud" } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "云端" } } } },

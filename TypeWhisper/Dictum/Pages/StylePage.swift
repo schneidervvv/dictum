@@ -49,13 +49,7 @@ struct StylePage: View {
                                         withAnimation(DictumTheme.Motion.spring) { expanded = expanded == app.id ? nil : app.id }
                                     } label: {
                                         HStack(spacing: 12) {
-                                            HStack(spacing: -6) {
-                                                ForEach(Array(app.bundleIDs.prefix(4)), id: \.self) { id in
-                                                    if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id) {
-                                                        Image(nsImage: NSWorkspace.shared.icon(forFile: url.path)).resizable().frame(width: 20, height: 20)
-                                                    }
-                                                }
-                                            }.frame(width: 66, alignment: .leading)
+                                            rowIcons(app).frame(width: 66, alignment: .leading)
                                             if app.isBuiltIn {
                                                 Text(LocalizedStringKey(app.name), tableName: "DictumStyle").frame(width: 110, alignment: .leading)
                                             } else { Text(verbatim: app.displayName).frame(width: 110, alignment: .leading) }
@@ -152,6 +146,34 @@ struct StylePage: View {
                              minimumHeight: showsInput ? 84 : 0)
         }.padding(.horizontal, showsInput ? 18 : 0).padding(.vertical, showsInput ? 16 : 8)
             .frame(maxWidth: .infinity, alignment: .leading).background(showsInput ? DictumTheme.inset : .clear)
+    }
+
+    /// 最多四个已安装应用的图标；一个都没有安装时用与应用图标同尺寸的圆角图块，每一行都有图标。
+    private func rowIcons(_ app: AppStyle) -> some View {
+        let urls = app.bundleIDs.prefix(4).compactMap { NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) }
+        return HStack(spacing: -6) {
+            if urls.isEmpty {
+                RoundedRectangle(cornerRadius: 5).fill(DictumTheme.accentSoft).frame(width: 20, height: 20)
+                    .overlay {
+                        Image(systemName: fallbackSymbol(app)).font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(DictumTheme.accent).accessibilityHidden(true)
+                    }
+            } else {
+                ForEach(urls, id: \.self) { url in
+                    Image(nsImage: NSWorkspace.shared.icon(forFile: url.path)).resizable().frame(width: 20, height: 20)
+                }
+            }
+        }
+    }
+
+    private func fallbackSymbol(_ app: AppStyle) -> String {
+        switch app.kind {
+        case .builtInGroup(.chat): "bubble.left.fill"
+        case .builtInGroup(.mail): "envelope.fill"
+        case .builtInGroup(.docs): "doc.text.fill"
+        case .builtInGroup(.code): "chevron.left.forwardslash.chevron.right"
+        case .userApp: "app.fill"
+        }
     }
 
     private func summary(_ app: AppStyle) -> String {

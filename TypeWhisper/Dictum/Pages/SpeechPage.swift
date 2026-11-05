@@ -19,6 +19,7 @@ private struct SpeechSettingsForm: View {
     @State private var key = ""
     @State private var failure: String?
     @State private var moreLocal = false
+    @State private var moreCloud = false
     @State private var checkingKey = false
     @State private var checkedCredentials: [String: SpeechCredentialCheck.Result] = [:]
 
@@ -89,8 +90,23 @@ private struct SpeechSettingsForm: View {
                         }
                     }
                     GroupedFormSection(title: "Cloud", footer: "With cloud recognition, audio is sent to the provider you choose.", tableName: "DictumSpeech") {
-                        ForEach(cloudEngines, id: \.providerId) { engine in
-                            cloudRow(engine)
+                        let configured = cloudEngines.filter(\.isConfigured)
+                        let unconfigured = cloudEngines.filter { !$0.isConfigured }
+                        ForEach(configured, id: \.providerId) { engine in
+                            cloudRow(engine, separated: engine.providerId != configured.first?.providerId)
+                        }
+                        if !unconfigured.isEmpty {
+                            DisclosureGroup(isExpanded: $moreCloud) {
+                                ForEach(unconfigured, id: \.providerId) { engine in
+                                    cloudRow(engine, separated: engine.providerId != unconfigured.first?.providerId)
+                                }
+                            } label: {
+                                Text(String(localized: "Providers not set up (\(unconfigured.count))", table: "DictumSpeech"))
+                            }
+                            .padding(.horizontal, 14).padding(.vertical, 8)
+                            .overlay(alignment: .top) {
+                                if !configured.isEmpty { DictumTheme.separator.frame(height: 0.5).padding(.horizontal, 14) }
+                            }
                         }
                     }
                     if !network.isOnline {
@@ -199,9 +215,9 @@ private struct SpeechSettingsForm: View {
         }
     }
 
-    private func cloudRow(_ engine: any TranscriptionEnginePlugin) -> some View {
+    private func cloudRow(_ engine: any TranscriptionEnginePlugin, separated: Bool) -> some View {
         VStack(spacing: 0) {
-            GroupedFormRow(separated: cloudEngines.first?.providerId != engine.providerId) {
+            GroupedFormRow(separated: separated) {
                 radio(engine) { selectCloud(engine) }
                 Button { selectCloud(engine) } label: {
                     VStack(alignment: .leading, spacing: 2) {
