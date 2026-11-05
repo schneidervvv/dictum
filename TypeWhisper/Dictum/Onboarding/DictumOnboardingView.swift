@@ -25,6 +25,7 @@ struct DictumOnboardingView: View {
     @State private var failure: String?
     @State private var practiceText = ""
     @State private var completedPractice = false
+    @State private var finished = false
     @ObservedObject private var languages = TranslationLanguageStore.shared
     @ObservedObject private var sync = ServiceContainer.shared.cloudFolderSyncController
     @State private var syncOn = true
@@ -55,11 +56,12 @@ struct DictumOnboardingView: View {
                 if (OnboardingStep.permissions..<OnboardingStep.done).contains(step) { Button { step -= 1 } label: { text("Back") }.buttonStyle(.plain) }
                 Spacer()
                 if step == OnboardingStep.dictationPractice || step == OnboardingStep.translationPractice { Button { step += 1 } label: { text("Skip") }.buttonStyle(.plain) }
+                if step == OnboardingStep.dictationPractice || step == OnboardingStep.translationPractice {
+                    Button { finish() } label: { text("Next") }.buttonStyle(.plain)
+                }
                 Button {
                     if step == OnboardingStep.done {
-                        HomeViewModel.shared.completeSetupWizard()
-                        dismiss()
-                        DictumNavigation.shared.open(.home)
+                        finish()
                     } else if step == OnboardingStep.sync {
                         let choice = syncOn
                         Task { await syncStep.apply(switchOn: choice) }
@@ -69,7 +71,7 @@ struct DictumOnboardingView: View {
                     .buttonStyle(.borderedProminent).controlSize(.large).disabled(!canContinue)
             }.padding(.horizontal, 24).frame(height: 72)
         }.frame(width: 640, height: 540).background(DictumTheme.windowBackground)
-            .background(OnboardingWindowPolicy(finished: step == OnboardingStep.done))
+            .background(OnboardingWindowPolicy(finished: finished || step == OnboardingStep.done))
             .animation(.easeOut(duration: reduceMotion ? 0.15 : 0.35), value: step)
             .task { if step == OnboardingStep.welcome || step == OnboardingStep.model { await prepareModel() } }
             .task(id: "\(step)-\(devices.selectedDeviceUID ?? "")") {
@@ -107,6 +109,13 @@ struct DictumOnboardingView: View {
                 }
             }
             .onDisappear { stopMeter() }
+    }
+
+    private func finish() {
+        finished = true
+        HomeViewModel.shared.completeSetupWizard()
+        dismiss()
+        DictumNavigation.shared.open(.home)
     }
 
     private var canContinue: Bool {
@@ -353,7 +362,7 @@ private struct OnboardingWindowPolicy: NSViewRepresentable {
         var finished = false
         weak var previousDelegate: (any NSWindowDelegate)?
         func windowShouldClose(_ sender: NSWindow) -> Bool {
-            guard !finished else { return previousDelegate?.windowShouldClose?(sender) ?? true }
+            guard !finished, HomeViewModel.shared.showSetupWizard else { return previousDelegate?.windowShouldClose?(sender) ?? true }
             let alert = NSAlert()
             alert.messageText = String(localized: "Set up later?", table: "DictumHome")
             alert.addButton(withTitle: String(localized: "Continue", table: "DictumHome"))

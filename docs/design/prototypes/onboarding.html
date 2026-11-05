@@ -424,7 +424,7 @@ document.addEventListener('click', e => {
     </div>
   </section>
 
-  <div class="foot"><button class="btn plain" id="back">返回</button><span class="grow"></span><button class="btn plain" id="skip">稍后设置</button><button class="btn primary lg" id="next">开始</button></div>
+  <div class="foot"><button class="btn plain" id="back">返回</button><span class="grow"></span><button class="btn plain" id="skip">稍后设置</button><button class="btn plain" id="finish">下一步</button><button class="btn primary lg" id="next">开始</button></div>
 </div>
 </div>
 
@@ -447,12 +447,14 @@ function render(){
   $('#back').style.visibility = step === 0 || step === N-1 ? 'hidden' : 'visible';
   $('#skip').style.display = step === 4 || step === 5 ? '' : 'none';
   $('#skip').textContent = '跳过';
+  $('#finish').style.display = step === 4 || step === 5 ? '' : 'none';
   $('#next').textContent = step === 0 ? '开始' : step === N-1 ? '开始使用' : '继续';
   $('#next').disabled = !canNext();
 }
 $('#next').onclick = () => { if (step < N-1){ step++; render(); } };
 $('#back').onclick = () => { if (step > 0){ step--; render(); } };
 $('#skip').onclick = () => { step++; render(); };
+$('#finish').onclick = () => { step = N-1; render(); };
 document.addEventListener('click', e => {
   const j = e.target.closest('[data-jump]'); if (j){ step = +j.dataset.jump; render(); return; }
   if (e.target.id === 'obSync'){ e.target.classList.toggle('on'); $('#syncPath').style.opacity = e.target.classList.contains('on') ? 1 : .4; return; }
