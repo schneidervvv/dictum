@@ -97,6 +97,94 @@ final class WhisperKitPluginLifecycleTests: XCTestCase {
     }
 
     #if DEBUG
+    /// 与 Hub 下载器相同的形状：父进度的 userInfo 带着最近一段的字节每秒。
+    private func hubProgress(throughput: Double?) -> Progress {
+        let progress = Progress(totalUnitCount: 40)
+        if let throughput { progress.setUserInfoObject(throughput, forKey: .throughputKey) }
+        return progress
+    }
+
+    func testDownloadSpeedComesFromHubThroughputAndExpiresBeforeTheNextChunkIsDue() throws {
+        let start = Date(timeIntervalSince1970: 0)
+        var speed = WhisperKitDownloadSpeed(startedAt: start)
+        speed.record(hubProgress(throughput: nil), at: start.addingTimeInterval(1))
+        XCTAssertNil(speed.bytesPerSecond(at: start.addingTimeInterval(1)))
+
+        speed.record(hubProgress(throughput: 3_200_000), at: start.addingTimeInterval(2))
+        XCTAssertEqual(try XCTUnwrap(speed.bytesPerSecond(at: start.addingTimeInterval(2))), 3_200_000)
+        XCTAssertEqual(try XCTUnwrap(speed.bytesPerSecond(at: start.addingTimeInterval(5))), 3_200_000)
+        XCTAssertNil(speed.bytesPerSecond(at: start.addingTimeInterval(5.5)))
+
+        speed.record(hubProgress(throughput: 1_000_000), at: start.addingTimeInterval(12))
+        XCTAssertEqual(try XCTUnwrap(speed.bytesPerSecond(at: start.addingTimeInterval(26))), 1_000_000)
+        XCTAssertNil(speed.bytesPerSecond(at: start.addingTimeInterval(28)))
+    }
+
+    func testDownloadSpeedIgnoresValuesThatAreNotARealRate() {
+        let start = Date(timeIntervalSince1970: 0)
+        var speed = WhisperKitDownloadSpeed(startedAt: start)
+        for value in [0, -5, .nan, .infinity] as [Double] {
+            speed.record(hubProgress(throughput: value), at: start.addingTimeInterval(1))
+        }
+        XCTAssertNil(speed.bytesPerSecond(at: start.addingTimeInterval(1)))
+    }
+
+    func testDownloadingEngineReportsOnlyMeasuredSpeedThroughTheSpeechContract() throws {
+        let host = try makeHost()
+        defer { TestSupport.remove(host.pluginDataDirectory) }
+        let plugin = WhisperKitPlugin()
+        plugin.activate(host: host)
+
+        plugin.setModelStateForTesting(.downloading)
+        XCTAssertNil(SpeechDownloadProgress(engine: plugin))
+
+        plugin.recordDownloadSpeed(hubProgress(throughput: 3_200_000), generation: plugin.modelLoadGenerationForTesting)
+        let details = try XCTUnwrap(SpeechDownloadProgress(engine: plugin))
+        XCTAssertEqual(details.bytesPerSecond, 3_200_000)
+        XCTAssertEqual(details.speedText, ByteCountFormatter.string(fromByteCount: 3_200_000, countStyle: .file) + "/s")
+        XCTAssertNil(details.byteCounts)
+        XCTAssertNil(details.completedBytes)
+        XCTAssertNil(details.totalBytes)
+        XCTAssertNil(details.remainingSeconds)
+    }
+
+    func testDownloadSpeedDisappearsWhenTheDownloadEndsFailsOrIsCancelled() throws {
+        let host = try makeHost()
+        defer { TestSupport.remove(host.pluginDataDirectory) }
+        let plugin = WhisperKitPlugin()
+        plugin.activate(host: host)
+        let generation = plugin.modelLoadGenerationForTesting
+
+        let endStates: [WhisperModelState] = [.loading(phase: "compiling"), .ready("openai_whisper-tiny"),
+                                              .error("offline"), .notLoaded]
+        for state in endStates {
+            plugin.setModelStateForTesting(.downloading)
+            plugin.recordDownloadSpeed(hubProgress(throughput: 3_200_000), generation: generation)
+            XCTAssertNotNil(SpeechDownloadProgress(engine: plugin))
+            plugin.setModelStateForTesting(state)
+            XCTAssertNil(SpeechDownloadProgress(engine: plugin), "\(state)")
+        }
+
+        plugin.setModelStateForTesting(.downloading)
+        plugin.recordDownloadSpeed(hubProgress(throughput: 3_200_000), generation: generation)
+        plugin.unloadModel(clearPersistence: false)
+        plugin.setModelStateForTesting(.downloading)
+        XCTAssertNil(SpeechDownloadProgress(engine: plugin))
+    }
+
+    func testCancelledDownloadStillRunningCannotWriteSpeedIntoTheNextDownload() throws {
+        let host = try makeHost()
+        defer { TestSupport.remove(host.pluginDataDirectory) }
+        let plugin = WhisperKitPlugin()
+        plugin.activate(host: host)
+        let cancelledGeneration = plugin.modelLoadGenerationForTesting
+
+        plugin.unloadModel(clearPersistence: false)
+        plugin.setModelStateForTesting(.downloading)
+        plugin.recordDownloadSpeed(hubProgress(throughput: 9_000_000), generation: cancelledGeneration)
+        XCTAssertNil(SpeechDownloadProgress(engine: plugin))
+    }
+
     private func waitForRestoreLoadedModelInvocationCount(
         _ plugin: WhisperKitPlugin,
         toBecome expected: Int,

@@ -2,21 +2,28 @@ import Foundation
 import TypeWhisperPluginSDK
 
 struct SpeechDownloadProgress {
-    let completedBytes: Int64
-    let totalBytes: Int64
+    let completedBytes: Int64?
+    let totalBytes: Int64?
     let remainingSeconds: Double?
     let bytesPerSecond: Double?
 
+    /// 引擎可以只提供速度（没有字节总量时），也可以只提供字节数；两者都没有时为 nil。
     init?(engine: any TranscriptionEnginePlugin) {
         let selector = NSSelectorFromString("speechDownloadDetails")
         guard let object = engine as? NSObject, object.responds(to: selector),
-              let values = object.perform(selector)?.takeUnretainedValue() as? NSDictionary,
-              let completed = values["completedBytes"] as? NSNumber,
-              let total = values["totalBytes"] as? NSNumber, total.int64Value > 1 else { return nil }
-        completedBytes = completed.int64Value
-        totalBytes = total.int64Value
+              let values = object.perform(selector)?.takeUnretainedValue() as? NSDictionary else { return nil }
+        let completed = (values["completedBytes"] as? NSNumber)?.int64Value
+        let total = (values["totalBytes"] as? NSNumber)?.int64Value
+        if let completed, let total, total > 1 {
+            completedBytes = completed
+            totalBytes = total
+        } else {
+            completedBytes = nil
+            totalBytes = nil
+        }
         remainingSeconds = (values["remainingSeconds"] as? NSNumber)?.doubleValue
         bytesPerSecond = (values["bytesPerSecond"] as? NSNumber)?.doubleValue
+        guard byteCounts != nil || speedText != nil else { return nil }
     }
 
     /// 例如 `3.2 MB/s`；没有可用的速度时为 nil。
@@ -31,7 +38,9 @@ struct SpeechDownloadProgress {
         return String(localized: LocalizedStringResource("Connection lost, \(size) downloaded", table: "DictumSpeech", locale: locale))
     }
 
-    var byteCounts: String {
+    /// 例如 `2.2 GB / 3.4 GB`；引擎没有提供字节总量时为 nil。
+    var byteCounts: String? {
+        guard let completedBytes, let totalBytes else { return nil }
         let completed = ByteCountFormatter.string(fromByteCount: completedBytes, countStyle: .file)
         let total = ByteCountFormatter.string(fromByteCount: totalBytes, countStyle: .file)
         return "\(completed) / \(total)"

@@ -82,6 +82,10 @@ private struct SpeechSettingsForm: View {
                                         radio(engine) { models.selectProvider(engine.providerId) }
                                         Text(verbatim: engine.providerDisplayName)
                                         Spacer()
+                                        if let speed = SpeechDownloadProgress(engine: engine)?.speedText {
+                                            Text(verbatim: speed).font(.system(size: 11)).lineLimit(1)
+                                                .foregroundStyle(DictumTheme.textTertiary)
+                                        }
                                     }
                                     plugins.loadedTranscriptionPlugin(for: engine.providerId)?.instance.settingsView
                                 }
@@ -182,7 +186,7 @@ private struct SpeechSettingsForm: View {
                 ProgressView(value: activity.progress).progressViewStyle(.linear).tint(DictumTheme.accent)
                 if let progress = activity.progress {
                     let details = SpeechDownloadProgress(engine: engine)
-                    Text(verbatim: progress.formatted(.percent.precision(.fractionLength(0))) + (details.map { " · " + $0.byteCounts } ?? ""))
+                    Text(verbatim: progress.formatted(.percent.precision(.fractionLength(0))) + (details?.byteCounts.map { " · " + $0 } ?? ""))
                         .font(.system(size: 11)).lineLimit(1)
                     let remaining = details?.remainingSeconds.flatMap { $0.isFinite
                         ? String(localized: "About \(max(1, Int(ceil($0 / 60)))) min", table: "DictumSpeech") : nil }
