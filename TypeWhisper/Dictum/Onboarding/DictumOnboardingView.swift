@@ -79,7 +79,8 @@ struct DictumOnboardingView: View {
             }
             .onChange(of: step) { old, new in
                 if old == OnboardingStep.microphone { stopMeter() }
-                if new == OnboardingStep.dictationPractice || new == OnboardingStep.translationPractice {
+                if OnboardingStep.isPractice(old) { OnboardingPracticeSession.end(dictation) }
+                if OnboardingStep.isPractice(new) {
                     practiceText = ""
                     completedPractice = false
                 }
@@ -87,7 +88,7 @@ struct DictumOnboardingView: View {
             }
             // 用户点过输入框以外的地方后，文字会插入到没有焦点的窗口而丢失，练习永远不会完成。
             .onChange(of: dictation.state) { _, new in
-                guard step == OnboardingStep.dictationPractice || step == OnboardingStep.translationPractice else { return }
+                guard OnboardingStep.isPractice(step) else { return }
                 if new == .recording || new == .processing { practiceFocused = true }
             }
             .onReceive(Timer.publish(every: 0.1, on: .main, in: .common).autoconnect()) { _ in
@@ -108,10 +109,14 @@ struct DictumOnboardingView: View {
                     dictation.setHotkey(SetupWizardDefaultHotkey.recommendedHybridHotkey, for: .hybrid)
                 }
             }
-            .onDisappear { stopMeter() }
+            .onDisappear {
+                stopMeter()
+                if OnboardingStep.isPractice(step) { OnboardingPracticeSession.end(dictation) }
+            }
     }
 
     private func finish() {
+        OnboardingPracticeSession.end(dictation)
         finished = true
         HomeViewModel.shared.completeSetupWizard()
         dismiss()
