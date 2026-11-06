@@ -98,7 +98,7 @@ private struct SpeechSettingsForm: View {
                         if !unconfigured.isEmpty {
                             DisclosureGroup(isExpanded: $moreCloud) {
                                 ForEach(unconfigured, id: \.providerId) { engine in
-                                    cloudRow(engine, separated: engine.providerId != unconfigured.first?.providerId)
+                                    cloudRow(engine, separated: engine.providerId != unconfigured.first?.providerId, inset: 0)
                                 }
                             } label: {
                                 Text(String(localized: "Providers not set up (\(unconfigured.count))", table: "DictumSpeech"))
@@ -215,9 +215,9 @@ private struct SpeechSettingsForm: View {
         }
     }
 
-    private func cloudRow(_ engine: any TranscriptionEnginePlugin, separated: Bool) -> some View {
+    private func cloudRow(_ engine: any TranscriptionEnginePlugin, separated: Bool, inset: CGFloat = 14) -> some View {
         VStack(spacing: 0) {
-            GroupedFormRow(separated: separated) {
+            GroupedFormRow(separated: separated, horizontalInset: inset) {
                 radio(engine) { selectCloud(engine) }
                 Button { selectCloud(engine) } label: {
                     VStack(alignment: .leading, spacing: 2) {
@@ -231,13 +231,13 @@ private struct SpeechSettingsForm: View {
             }.padding(.vertical, 7)
             if expandedProvider == engine.providerId {
                 if let plugin = plugins.loadedTranscriptionPlugin(for: engine.providerId), plugin.id == "com.typewhisper.openai-compatible" {
-                    plugin.instance.settingsView.padding(14)
+                    plugin.instance.settingsView.padding(.horizontal, inset).padding(.vertical, 14)
                 } else {
                     HStack {
                         SecureField(text: $key) { Text(String(localized: "Paste \(engine.providerDisplayName) API key", table: "DictumSpeech")) }.textFieldStyle(.roundedBorder)
                         Button { saveKey(engine) } label: { Text("Test and Use", tableName: "DictumSpeech") }
                             .disabled(key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    }.padding(.leading, 42).padding(.trailing, 14).padding(.bottom, 12)
+                    }.padding(.leading, inset + 28).padding(.trailing, inset).padding(.bottom, 12)
                 }
             }
         }.opacity(network.isOnline ? 1 : 0.45).disabled(!network.isOnline)

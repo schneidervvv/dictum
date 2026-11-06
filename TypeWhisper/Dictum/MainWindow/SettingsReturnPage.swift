@@ -4,5 +4,7 @@ import Foundation
 struct SettingsReturnPage: Equatable {
     private(set) var page: DictumPage = .home
 
-    mutating func pageChanged(from previous: DictumPage, to current: DictumPage) {}
+    mutating func pageChanged(from previous: DictumPage, to current: DictumPage) {
+        if current.isSettings, !previous.isSettings { page = previous }
+    }
 }

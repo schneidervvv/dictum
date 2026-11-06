@@ -38,9 +38,9 @@ struct GroupedFormRow<Content: View>: View {
     var body: some View {
         HStack(spacing: 12, content: content)
             .frame(maxWidth: .infinity, minHeight: 44)
-            .padding(.horizontal, 14)
+            .padding(.horizontal, horizontalInset)
             .overlay(alignment: .top) {
-                if separated { DictumTheme.separator.frame(height: 0.5).padding(.horizontal, 14) }
+                if separated { DictumTheme.separator.frame(height: 0.5).padding(.horizontal, horizontalInset) }
             }
     }
 }

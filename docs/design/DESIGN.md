@@ -109,7 +109,7 @@ Played by `SoundService`, all gated by the General → Sounds → "Interaction s
 
 ### 3.2 Sidebar
 
-Order is fixed. SF Symbols in parentheses. The sidebar has two modes. The main mode lists items 1–4 and a `设置` / Settings button (`gearshape`) pinned directly above the status row; clicking it opens General and switches the sidebar to the settings mode. The settings mode replaces the list with a back row (`chevron.left`, `设置` / Settings, accessibility label `返回` / Back) followed by items 5–7; the back row returns to the main mode and opens Home. Opening a settings page by any other route (⌘, the status row, the menu bar) also switches to the settings mode. ⌘1 … ⌘7 work in both modes.
+Order is fixed. SF Symbols in parentheses. The sidebar has two modes. The main mode lists items 1–4 and a `设置` / Settings button (`gearshape`) pinned directly above the status row; clicking it opens General and switches the sidebar to the settings mode. The settings mode replaces the list with a back row (`chevron.left`, `设置` / Settings, accessibility label `返回` / Back) followed by items 5–7; the back row returns to the main mode and opens the main page that was showing when the settings mode was entered (Home when the app started inside a settings page). Opening a settings page by any other route (⌘, the status row, the menu bar) also switches to the settings mode. ⌘1 … ⌘7 work in both modes.
 
 | # | zh-Hans | English | Symbol | Prototype |
 |---|---|---|---|---|
@@ -403,7 +403,7 @@ Apps not covered use the global style. A per-app row wins over a group that cont
 **Layout.** Grouped form, max width 620.
 
 1. **本机 On this Mac.** A radio row for `Qwen3-ASR 1.7B` with a `推荐` badge and subtitle `中英混说准确，不联网也能用 · 3.4 GB`. Right side by state (table below). Indented row `精度` popup (`8-bit · 更快` / `bf16 · 更准`; phase 1 decides the default). Disclosure `更多本机模型` reveals Whisper Large v3 Turbo and Parakeet TDT 0.6B rows with `下载` buttons.
-2. **云端 Cloud.** Radio rows for configured cloud ASR providers with a status badge (`已连接` success, `密钥无效` danger). Unconfigured providers sit in one disclosure row `未配置的供应商（{n}）`, collapsed by default; with nothing configured the section shows only that row. Inside it each row carries a `未配置` neutral badge. Clicking an unconfigured row expands an inline key row: secure field `粘贴 {provider} API 密钥` and `测试并使用`. Footer: `使用云端识别时，录音会发送给所选服务商。`
+2. **云端 Cloud.** Radio rows for configured cloud ASR providers with a status badge (`已连接` success, `密钥无效` danger). Unconfigured providers sit in one disclosure row `未配置的供应商（{n}）`, collapsed by default; with nothing configured the section shows only that row. Inside it each row carries a `未配置` neutral badge; the disclosure supplies the 14 pt side padding, so its rows and the expanded key row add none of their own and line up with the rows above the disclosure. Clicking an unconfigured row expands an inline key row: secure field `粘贴 {provider} API 密钥` and `测试并使用`. Footer: `使用云端识别时，录音会发送给所选服务商。`
 3. **识别 Recognition.** `说话语言` popup (自动检测 / 中文 / English / …), `说话时显示文字` switch (streaming preview on the voice bar, default on).
 
 **Qwen3 row states.**

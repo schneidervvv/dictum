@@ -3,6 +3,7 @@ import SwiftUI
 struct Sidebar: View {
     @Binding var page: DictumPage
     @State private var showsSettings: Bool
+    @State private var returnPage = SettingsReturnPage()
 
     init(page: Binding<DictumPage>) {
         _page = page
@@ -25,13 +26,16 @@ struct Sidebar: View {
         .frame(maxHeight: .infinity)
         .overlay(alignment: .trailing) { DictumTheme.separator.frame(width: 0.5) }
         .background { hiddenShortcuts(settings: !showsSettings) }
-        .onChange(of: page) { _, destination in showsSettings = destination.isSettings }
+        .onChange(of: page) { previous, destination in
+            returnPage.pageChanged(from: previous, to: destination)
+            showsSettings = destination.isSettings
+        }
     }
 
     private var backRow: some View {
         Button {
             showsSettings = false
-            if page.isSettings { page = .home }
+            if page.isSettings { page = returnPage.page }
         } label: {
             HStack(spacing: 9) {
                 Image(systemName: "chevron.left")
