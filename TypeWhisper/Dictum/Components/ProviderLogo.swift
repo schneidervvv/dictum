@@ -29,8 +29,9 @@ enum ProviderLogo {
     }
 
     static func asset(baseURL: String, presets: [[String: String]]) -> String? {
-        guard let host = URL(string: baseURL)?.host else { return nil }
-        return presets.first { URL(string: $0["url"] ?? "")?.host == host }.flatMap { $0["id"] }.flatMap { assetByProvider[$0] }
+        guard let host = URL(string: baseURL)?.host?.lowercased() else { return nil }
+        return presets.first { URL(string: $0["url"] ?? "")?.host?.lowercased() == host }
+            .flatMap { $0["id"] }.flatMap { assetByProvider[$0] }
     }
 }
 
