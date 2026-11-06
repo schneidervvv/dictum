@@ -19,11 +19,17 @@ enum ProviderLogo {
 
     /// 兼容接口配置按接口地址的主机名对应到预设供应商，用户自填的地址也能得到正确的标识。
     private static func compatibleAsset(profileId: String) -> String? {
+        // 只传 id 的 configure 调用不写入任何配置，也不触发能力变更通知，仅返回当前配置快照。
         guard let snapshot = try? ProviderConfiguration.configure(["id": profileId]),
-              let host = (snapshot["url"] as? String).flatMap({ URL(string: $0)?.host }) else { return nil }
+              let baseURL = snapshot["url"] as? String else { return nil }
         let selector = NSSelectorFromString("dictumPresets")
         let presets = ProviderConfiguration.compatiblePlugin?.responds(to: selector) == true
             ? ProviderConfiguration.compatiblePlugin?.perform(selector)?.takeUnretainedValue() as? [[String: String]] ?? [] : []
+        return asset(baseURL: baseURL, presets: presets)
+    }
+
+    static func asset(baseURL: String, presets: [[String: String]]) -> String? {
+        guard let host = URL(string: baseURL)?.host else { return nil }
         return presets.first { URL(string: $0["url"] ?? "")?.host == host }.flatMap { $0["id"] }.flatMap { assetByProvider[$0] }
     }
 }
