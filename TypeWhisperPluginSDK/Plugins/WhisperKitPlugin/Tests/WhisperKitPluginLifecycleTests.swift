@@ -120,6 +120,21 @@ final class WhisperKitPluginLifecycleTests: XCTestCase {
         XCTAssertNil(speed.bytesPerSecond(at: start.addingTimeInterval(28)))
     }
 
+    func testRepeatedProgressWithoutNewThroughputPreservesSampleExpiry() throws {
+        let start = Date(timeIntervalSince1970: 0)
+        var speed = WhisperKitDownloadSpeed(startedAt: start)
+        let progress = hubProgress(throughput: 1_000_000)
+        speed.record(progress, at: start.addingTimeInterval(12))
+        speed.record(progress, at: start.addingTimeInterval(12.01))
+        XCTAssertEqual(try XCTUnwrap(speed.bytesPerSecond(at: start.addingTimeInterval(29))), 1_000_000)
+        speed.record(progress, at: start.addingTimeInterval(29))
+        XCTAssertNil(speed.bytesPerSecond(at: start.addingTimeInterval(31)))
+
+        progress.setUserInfoObject(1_000_000.0, forKey: .throughputKey)
+        speed.record(progress, at: start.addingTimeInterval(32))
+        XCTAssertEqual(try XCTUnwrap(speed.bytesPerSecond(at: start.addingTimeInterval(33))), 1_000_000)
+    }
+
     func testDownloadSpeedIgnoresValuesThatAreNotARealRate() {
         let start = Date(timeIntervalSince1970: 0)
         var speed = WhisperKitDownloadSpeed(startedAt: start)

@@ -1335,6 +1335,8 @@ struct WhisperKitDownloadSpeed {
 
     mutating func record(_ progress: Progress, at date: Date = .now) {
         guard let value = progress.userInfo[.throughputKey] as? Double, value.isFinite, value > 0 else { return }
+        // Hub 复用进度对象，每个实测采样只消费一次。
+        progress.setUserInfoObject(nil, forKey: .throughputKey)
         hold = max(Self.minimumHold, date.timeIntervalSince(anchor) * 1.5)
         anchor = date
         speed = value
