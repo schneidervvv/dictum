@@ -53,6 +53,7 @@
     "Open System Settings": {"localizations":{"en":{"stringUnit":{"state":"translated","value":"Open System Settings"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"打开系统设置"}}}},
     "Back": {"localizations":{"en":{"stringUnit":{"state":"translated","value":"Back"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"返回"}}}},
     "Skip": {"localizations":{"en":{"stringUnit":{"state":"translated","value":"Skip"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"跳过"}}}},
+    "Next": {"localizations":{"en":{"stringUnit":{"state":"translated","value":"Next"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"下一步"}}}},
     "Get Started": {"localizations":{"en":{"stringUnit":{"state":"translated","value":"Get Started"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"开始"}}}},
     "Start Using dictum": {"localizations":{"en":{"stringUnit":{"state":"translated","value":"Start Using dictum"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"开始使用"}}}},
     "Continue": {"localizations":{"en":{"stringUnit":{"state":"translated","value":"Continue"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"继续"}}}},

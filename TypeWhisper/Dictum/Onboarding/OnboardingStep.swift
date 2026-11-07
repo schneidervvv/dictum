@@ -11,4 +11,8 @@ enum OnboardingStep {
     static let sync = 6
     static let done = 7
     static let count = 8
+
+    static func isPractice(_ step: Int) -> Bool {
+        step == dictationPractice || step == translationPractice
+    }
 }
