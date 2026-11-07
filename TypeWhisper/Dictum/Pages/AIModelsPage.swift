@@ -34,7 +34,7 @@ struct AIModelsPage: View {
             } label: { Label { Text("Add", tableName: "DictumStyle") } icon: { Image(systemName: "plus") } }
                 .menuIndicator(.hidden).buttonStyle(DictumControlStyle(kind: .smallButton)).fixedSize()
         }) {
-            if processing.fallbackPriorityList.isEmpty { emptyState }
+            if processing.fallbackPriorityList.isEmpty { ScrollView { emptyState } }
             else {
                 HStack(alignment: .top, spacing: 20) {
                     providerList.frame(width: 276)
@@ -58,19 +58,20 @@ struct AIModelsPage: View {
                 .frame(width: 52, height: 52).background(DictumTheme.card, in: RoundedRectangle(cornerRadius: 14))
             Text("Connect an AI model", tableName: "DictumStyle").font(.headline)
             Text("provider.empty", tableName: "DictumStyle").foregroundStyle(.secondary).multilineTextAlignment(.center)
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 4), spacing: 8) {
+                .frame(maxWidth: 520)
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 180), spacing: 8)], spacing: 8) {
                 ForEach(ProviderConfiguration.choices) { choice in
                     Button { add(choice) } label: {
                         HStack(spacing: 9) {
                             ProviderLogoTile(asset: ProviderLogo.asset(providerId: choice.id),
                                              fallbackSymbol: ProviderLogo.languageModelFallbackSymbol, size: 22)
-                            Text(verbatim: choice.name).font(.system(size: 12))
+                            Text(verbatim: choice.name).font(.system(size: 12)).fixedSize()
                             Spacer(minLength: 0)
                         }.padding(.horizontal, 10).frame(maxWidth: .infinity, minHeight: 44)
                     }.buttonStyle(.plain).background(DictumTheme.card, in: RoundedRectangle(cornerRadius: 10))
                 }
             }.padding(.top, 10)
-        }.frame(maxWidth: 520).padding(.top, 70).padding(28).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        }.frame(maxWidth: 760).padding(.top, 70).padding(28).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
     private var providerList: some View {

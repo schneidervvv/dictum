@@ -469,7 +469,7 @@ Apps not covered use the global style. A per-app row wins over a group that cont
 
 Phase 2 confirms each preset URL against the provider's docs before shipping.
 
-**States.** Normal; first provider failing (red dot in list, sidebar shows `使用备用模型`); none configured: centered empty state with sparkle glyph, `接入一个 AI 模型`, `AI 模型负责去掉口头禅、整理段落和翻译。没有接入时，dictum 只插入识别出的原文。`, and a 4-column grid of provider tiles; clicking a tile adds it and opens its detail with the key field focused.
+**States.** Normal; first provider failing (red dot in list, sidebar shows `使用备用模型`); none configured: centered empty state with sparkle glyph, `接入一个 AI 模型`, `AI 模型负责去掉口头禅、整理段落和翻译。没有接入时，dictum 只插入识别出的原文。`, and an adaptive grid of provider tiles (180pt minimum column width, 8pt gaps, 760pt maximum grid width; four columns at the default window width, fewer in narrower windows). Provider names stay complete on one line at 12pt, and the description keeps its 520pt maximum width. The empty state scrolls vertically when needed. Clicking a tile adds it and opens its detail with the key field focused.
 
 **Copy.**
 
