@@ -493,7 +493,7 @@ Phase 2 confirms each preset URL against the provider's docs before shipping.
 
 ### 5.8 Onboarding 上手引导 (`onboarding.html`)
 
-A separate 640 × 540 window, centered, shown on first launch and from Home's `练习一次`. Close and minimize are disabled until the last step (traffic lights greyed except close, which asks `稍后再设置？` and leaves the app usable in the menu bar). Top: 8 progress dots (current is an 18pt accent pill, past dots tertiary). Bottom bar: `返回` (plain, hidden on first and last step), `跳过` (practice steps only), primary `继续`, disabled until the step's goal is met. Steps slide in from the right (0.35 s ease-out, 14pt offset).
+A separate 640 × 540 window, centered, shown on first launch and from Home's `练习一次`. Close and minimize are disabled until the last step (traffic lights greyed except close, which asks `稍后再设置？` and leaves the app usable in the menu bar). Top: 8 progress dots (current is an 18pt accent pill, past dots tertiary). Bottom bar: `返回` (plain, hidden on first and last step), `跳过` (practice steps only), `下一步` (practice steps only, always enabled: closes onboarding as complete and opens Home, so a user who does not want to try dictation now goes straight into the app; a practice recording or transcription still running is cancelled like a voice-bar cancel, so nothing is inserted into any window, and leaving a practice step through `返回`, `跳过`, `继续` or the window closing does the same), primary `继续`, disabled until the step's goal is met. Steps slide in from the right (0.35 s ease-out, 14pt offset).
 
 | # | Step | Content | Goal to continue |
 |---|---|---|---|
@@ -512,7 +512,7 @@ A separate 640 × 540 window, centered, shown on first launch and from Home's `�
 |---|---|
 | 说话，就能打字 | Talk, and it's typed |
 | 在任何输入框里按一下 fn，说完再按一下。dictum 会去掉口头禅、整理好段落，把文字放到光标处。 | Press fn in any text field, talk, then press fn again. dictum cleans up filler words, organizes paragraphs, and puts the text at your cursor. |
-| 开始 / 继续 / 返回 / 跳过 / 开始使用 | Get Started / Continue / Back / Skip / Start Using dictum |
+| 开始 / 继续 / 返回 / 跳过 / 下一步 / 开始使用 | Get Started / Continue / Back / Skip / Next / Start Using dictum |
 | 开启权限 | Turn on access |
 | 录音和文字只在你按下快捷键时处理。 | Audio and text are only processed when you press the shortcut. |
 | 麦克风 / 听你说话 / 允许 | Microphone / To hear you / Allow |
