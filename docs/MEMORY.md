@@ -8,6 +8,8 @@
 
 ## 已交付
 
+* 2026-11-07 语言设置立即重启的退出回调通过主运行循环发起退出，释放主执行器，使原有本地识别清理任务能够执行并回复 AppKit。实际回调与 `TerminationPreparation` 的隔离 AppKit 进程回归在修复前空闲和识别中两项均超时，修复后两项正常退出，识别中仍等待当前分段结束。新增 `scripts/test-termination-relaunch.py` 及专用进程夹具；已有识别门与启动搜索路径修复保持不变。SDK 测试 711 项、709 通过、2 跳过；定向 Xcode 测试宿主未完成启动，在建立连接前中止，没有执行目标用例。整合版真实语言重启、Qwen 单次插入及练习录音和处理中取消仍由 Terra 验收。触发步骤与验证证据见 `/tmp/dictum-trigger-restart-preparation.md`。
+
 * 2026-11-07 修复整合开发版启动停滞：`dictum-verify.sh` 在签名前移除包内 Mach-O 指向构建目录 `PackageFrameworks` 的绝对动态库搜索路径，保留包内相对路径与稳定签名。基线进程 93351 停在 `dyld __open`，`finishedLaunching=false`；修复后进程 98752、2809 均完成启动，CUA 按安装路径连接成功，Qwen3 显示就绪，框架实际从安装包内加载。27 个二进制的代码段哈希保持一致，最终产物无 `PackageFrameworks` 搜索路径，严格签名检查通过。本轮仅执行启动定向验证，完整 all、Release 与产品实机验收没有重新运行。Dev 偏好已恢复，应用数据（含现有模型）与全类型剪贴板比较一致，正式版 PID 19447 保持运行，运行锁已释放。调查记录：`/tmp/dictum-dev-startup-diagnosis.md`，后续由 Terra 接续产品验收。
 
 * 2026-11-07 按 PR28→PR29→PR30 通过普通 merge 整合引导、供应商标志和设置修改，并包含已合并 PR28 的 main `798a0e0e`。语音页展开密钥行使用 `inset + 62`，更多本机模型行同时显示图标与速度，元素间距为 12 pt，折叠入口左侧缩进为 76 pt。整合源码 `cd4bb605` 的 `scripts/dictum-verify.sh all` 返回 0：Xcode 3375 项、3369 通过、6 跳过；SDK 711 项、709 通过、2 跳过；本地化 2427 处调用缺失 0 键；Release 构建及严格签名检查通过。PR29 的 10 项引导与标志定向测试及 SDK 全量测试通过。整合版尚未启动实机界面，最终布局、引导处理中取消与 Qwen 听写交由 Terra 验收；本轮未操作模型下载或现有模型文件，PR29/30 保持未合并。记录：`/tmp/dictum-integration-ready.md`、`/tmp/dictum-integration-evidence/`。
