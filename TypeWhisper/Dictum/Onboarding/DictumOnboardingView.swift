@@ -25,6 +25,7 @@ struct DictumOnboardingView: View {
     @State private var failure: String?
     @State private var practiceText = ""
     @State private var completedPractice = false
+    @State private var finished = false
     @ObservedObject private var languages = TranslationLanguageStore.shared
     @ObservedObject private var sync = ServiceContainer.shared.cloudFolderSyncController
     @State private var syncOn = true
@@ -55,11 +56,12 @@ struct DictumOnboardingView: View {
                 if (OnboardingStep.permissions..<OnboardingStep.done).contains(step) { Button { step -= 1 } label: { text("Back") }.buttonStyle(.plain) }
                 Spacer()
                 if step == OnboardingStep.dictationPractice || step == OnboardingStep.translationPractice { Button { step += 1 } label: { text("Skip") }.buttonStyle(.plain) }
+                if step == OnboardingStep.dictationPractice || step == OnboardingStep.translationPractice {
+                    Button { finish() } label: { text("Next") }.buttonStyle(.plain)
+                }
                 Button {
                     if step == OnboardingStep.done {
-                        HomeViewModel.shared.completeSetupWizard()
-                        dismiss()
-                        DictumNavigation.shared.open(.home)
+                        finish()
                     } else if step == OnboardingStep.sync {
                         let choice = syncOn
                         Task { await syncStep.apply(switchOn: choice) }
@@ -69,7 +71,7 @@ struct DictumOnboardingView: View {
                     .buttonStyle(.borderedProminent).controlSize(.large).disabled(!canContinue)
             }.padding(.horizontal, 24).frame(height: 72)
         }.frame(width: 640, height: 540).background(DictumTheme.windowBackground)
-            .background(OnboardingWindowPolicy(finished: step == OnboardingStep.done))
+            .background(OnboardingWindowPolicy(finished: finished || step == OnboardingStep.done))
             .animation(.easeOut(duration: reduceMotion ? 0.15 : 0.35), value: step)
             .task { if step == OnboardingStep.welcome || step == OnboardingStep.model { await prepareModel() } }
             .task(id: "\(step)-\(devices.selectedDeviceUID ?? "")") {
@@ -77,11 +79,17 @@ struct DictumOnboardingView: View {
             }
             .onChange(of: step) { old, new in
                 if old == OnboardingStep.microphone { stopMeter() }
-                if new == OnboardingStep.dictationPractice || new == OnboardingStep.translationPractice {
+                if OnboardingStep.isPractice(old) { OnboardingPracticeSession.end(dictation) }
+                if OnboardingStep.isPractice(new) {
                     practiceText = ""
                     completedPractice = false
                 }
                 if new == OnboardingStep.sync { syncOn = syncStep.initialSwitch }
+            }
+            // 用户点过输入框以外的地方后，文字会插入到没有焦点的窗口而丢失，练习永远不会完成。
+            .onChange(of: dictation.state) { _, new in
+                guard OnboardingStep.isPractice(step) else { return }
+                if new == .recording || new == .processing { practiceFocused = true }
             }
             .onReceive(Timer.publish(every: 0.1, on: .main, in: .common).autoconnect()) { _ in
                 microphone = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
@@ -101,7 +109,18 @@ struct DictumOnboardingView: View {
                     dictation.setHotkey(SetupWizardDefaultHotkey.recommendedHybridHotkey, for: .hybrid)
                 }
             }
-            .onDisappear { stopMeter() }
+            .onDisappear {
+                stopMeter()
+                if OnboardingStep.isPractice(step) { OnboardingPracticeSession.end(dictation) }
+            }
+    }
+
+    private func finish() {
+        OnboardingPracticeSession.end(dictation)
+        finished = true
+        HomeViewModel.shared.completeSetupWizard()
+        dismiss()
+        DictumNavigation.shared.open(.home)
     }
 
     private var canContinue: Bool {
@@ -149,7 +168,7 @@ struct DictumOnboardingView: View {
             title("Getting the speech model ready")
             text("Qwen3-ASR recognizes Chinese and English on this Mac, no internet needed.").foregroundStyle(.secondary).multilineTextAlignment(.center)
             VStack(alignment: .leading, spacing: 14) {
-                Label("Qwen3-ASR 1.7B", systemImage: "waveform")
+                Label { Text(verbatim: "Qwen3-ASR 1.7B") } icon: { ProviderLogoTile(asset: ProviderLogo.asset(providerId: "qwen3"), size: 22) }
                 if !modelSize.isEmpty { Text(verbatim: modelSize).font(.caption).foregroundStyle(.secondary) }
                 if models.isModelReady { text("Ready").foregroundStyle(DictumTheme.success) }
                 else { ProgressView(value: progress); if let progress { Text(progress, format: .percent.precision(.fractionLength(0))) } }
@@ -348,7 +367,7 @@ private struct OnboardingWindowPolicy: NSViewRepresentable {
         var finished = false
         weak var previousDelegate: (any NSWindowDelegate)?
         func windowShouldClose(_ sender: NSWindow) -> Bool {
-            guard !finished else { return previousDelegate?.windowShouldClose?(sender) ?? true }
+            guard !finished, HomeViewModel.shared.showSetupWizard else { return previousDelegate?.windowShouldClose?(sender) ?? true }
             let alert = NSAlert()
             alert.messageText = String(localized: "Set up later?", table: "DictumHome")
             alert.addButton(withTitle: String(localized: "Continue", table: "DictumHome"))

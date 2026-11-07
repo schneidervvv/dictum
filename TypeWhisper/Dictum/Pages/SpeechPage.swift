@@ -73,13 +73,14 @@ private struct SpeechSettingsForm: View {
                                 }
                                 .id(qwen.selectedModelId)
                                 .disabled(qwenActivity != nil && qwenActivity?.isError != true)
-                            }.padding(.leading, 28)
+                            }.padding(.leading, 62)
                         }
                         if localEngines.contains(where: { $0.providerId != "qwen3" }) {
                             DisclosureGroup(isExpanded: $moreLocal) {
                                 ForEach(localEngines.filter { $0.providerId != "qwen3" }, id: \.providerId) { engine in
-                                    HStack {
+                                    HStack(spacing: 12) {
                                         radio(engine) { models.selectProvider(engine.providerId) }
+                                        logo(engine)
                                         Text(verbatim: engine.providerDisplayName)
                                         Spacer()
                                         if let speed = SpeechDownloadProgress(engine: engine)?.speedText {
@@ -90,7 +91,7 @@ private struct SpeechSettingsForm: View {
                                     plugins.loadedTranscriptionPlugin(for: engine.providerId)?.instance.settingsView
                                 }
                             } label: { Text("More local models", tableName: "DictumSpeech") }
-                            .padding(.leading, 42).padding(.trailing, 14).padding(.vertical, 8)
+                            .padding(.leading, 76).padding(.trailing, 14).padding(.vertical, 8)
                         }
                     }
                     GroupedFormSection(title: "Cloud", footer: "With cloud recognition, audio is sent to the provider you choose.", tableName: "DictumSpeech") {
@@ -159,10 +160,17 @@ private struct SpeechSettingsForm: View {
         }.buttonStyle(.plain).accessibilityLabel(Text(verbatim: engine.providerDisplayName))
     }
 
+    private func logo(_ engine: any TranscriptionEnginePlugin) -> some View {
+        ProviderLogoTile(asset: ProviderLogo.asset(providerId: engine.providerId),
+                         fallbackSymbol: plugins.loadedTranscriptionPlugin(for: engine.providerId)?.manifest.iconSystemName ?? "waveform",
+                         size: 22)
+    }
+
     private func localRow(_ engine: any TranscriptionEnginePlugin, title: String,
                           activity: PluginSettingsActivity?, model: PluginModelInfo?) -> some View {
         GroupedFormRow {
             radio(engine) { models.selectProvider(engine.providerId) }
+            logo(engine)
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     Text(verbatim: title).fontWeight(.medium)
@@ -223,6 +231,7 @@ private struct SpeechSettingsForm: View {
         VStack(spacing: 0) {
             GroupedFormRow(separated: separated, horizontalInset: inset) {
                 radio(engine) { selectCloud(engine) }
+                logo(engine)
                 Button { selectCloud(engine) } label: {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(verbatim: engine.providerDisplayName).fontWeight(.medium)
@@ -241,7 +250,7 @@ private struct SpeechSettingsForm: View {
                         SecureField(text: $key) { Text(String(localized: "Paste \(engine.providerDisplayName) API key", table: "DictumSpeech")) }.textFieldStyle(.roundedBorder)
                         Button { saveKey(engine) } label: { Text("Test and Use", tableName: "DictumSpeech") }
                             .disabled(key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    }.padding(.leading, inset + 28).padding(.trailing, inset).padding(.bottom, 12)
+                    }.padding(.leading, inset + 62).padding(.trailing, inset).padding(.bottom, 12)
                 }
             }
         }.opacity(network.isOnline ? 1 : 0.45).disabled(!network.isOnline)

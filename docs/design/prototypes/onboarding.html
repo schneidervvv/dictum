@@ -105,6 +105,9 @@ svg{display:block;flex-shrink:0}
 .proto-bar .on{background:var(--bg-selected);color:var(--text-1)}
 .proto-bar .sep{width:1px;height:14px;background:var(--separator-strong)}
 .stage{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:64px 32px 40px}
+.closed-note{display:none;flex-direction:column;align-items:center;gap:14px;text-align:center;color:var(--text-2);font-size:14px;line-height:1.6}
+.stage.closed .closed-note{display:flex}
+.stage.closed .ob{display:none}
 
 /* window */
 .window{width:1040px;height:680px;border-radius:var(--r-window);background:var(--bg-window);box-shadow:var(--shadow-window);display:flex;overflow:hidden;position:relative}
@@ -347,7 +350,8 @@ document.addEventListener('click', e => {
 
 <div class="proto-bar"><a href="index.html">全部原型</a><span class="sep"></span><button data-theme-set="light">浅色</button><button data-theme-set="dark">深色</button><span class="sep"></span><span id="jump"></span></div>
 
-<div class="stage">
+<div class="stage" id="stage">
+<div class="closed-note" id="closedNote"><span>引导已完成，窗口已关闭，首页已打开。<br>仍在进行的练习录音按取消处理，不会插入文字。</span><button class="btn plain" id="reopen">重新打开引导</button></div>
 <div class="ob" id="ob">
   <div class="traffic"><i></i><i></i><i></i></div>
   <div class="steps" id="dots"></div>
@@ -424,7 +428,7 @@ document.addEventListener('click', e => {
     </div>
   </section>
 
-  <div class="foot"><button class="btn plain" id="back">返回</button><span class="grow"></span><button class="btn plain" id="skip">稍后设置</button><button class="btn primary lg" id="next">开始</button></div>
+  <div class="foot"><button class="btn plain" id="back">返回</button><span class="grow"></span><button class="btn plain" id="skip">稍后设置</button><button class="btn plain" id="finish">下一步</button><button class="btn primary lg" id="next">开始</button></div>
 </div>
 </div>
 
@@ -441,18 +445,22 @@ function canNext(){
   return true;
 }
 function render(){
+  $('#stage').classList.remove('closed');
   $$('.pane').forEach(p => p.classList.toggle('on', +p.dataset.step === step));
   $$('#dots i').forEach((d, i) => d.className = i === step ? 'on' : i < step ? 'done' : '');
   $$('[data-jump]').forEach(b => b.classList.toggle('on', +b.dataset.jump === step));
   $('#back').style.visibility = step === 0 || step === N-1 ? 'hidden' : 'visible';
   $('#skip').style.display = step === 4 || step === 5 ? '' : 'none';
   $('#skip').textContent = '跳过';
+  $('#finish').style.display = step === 4 || step === 5 ? '' : 'none';
   $('#next').textContent = step === 0 ? '开始' : step === N-1 ? '开始使用' : '继续';
   $('#next').disabled = !canNext();
 }
 $('#next').onclick = () => { if (step < N-1){ step++; render(); } };
 $('#back').onclick = () => { if (step > 0){ step--; render(); } };
 $('#skip').onclick = () => { step++; render(); };
+$('#finish').onclick = () => { $('#stage').classList.add('closed'); };
+$('#reopen').onclick = () => { step = 4; render(); };
 document.addEventListener('click', e => {
   const j = e.target.closest('[data-jump]'); if (j){ step = +j.dataset.jump; render(); return; }
   if (e.target.id === 'obSync'){ e.target.classList.toggle('on'); $('#syncPath').style.opacity = e.target.classList.contains('on') ? 1 : .4; return; }
