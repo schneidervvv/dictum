@@ -163,6 +163,7 @@ See section 7.
 | Switch | standard | `Toggle(…).toggleStyle(.switch)` |
 | Key cap | 22pt high, radius 5, 0.5pt stroke plus 1.5pt bottom edge | custom `KeyCapView` |
 | App icon | real app icon from `NSWorkspace.shared.icon(forFile:)` at 20 or 28pt | `Image(nsImage:)` (prototypes use monogram tiles as stand-ins) |
+| Provider logo tile | Square tile (22pt in Speech rows, onboarding model step and the AI Models empty-state grid; the list and detail tiles keep their own sizes), `control` fill, 0.5pt `controlBorder`, radius 5 (7 from 28pt up). Shows the vendor's template vector logo from the `ProviderLogos` asset catalog in `textPrimary`; a provider without an official logo (WhisperKit, custom OpenAI-compatible) shows a neutral SF Symbol instead. OpenAI-compatible profiles take the logo of the preset whose base-URL host they match (host compared case-insensitively). Speech rows (local, more local, cloud), the AI Models list, detail and empty state, and the onboarding model step read the same mapping | `ProviderLogoTile`, `ProviderLogo.asset(providerId:)` |
 | Badge | 18pt high, radius 5, 11 medium, soft tinted background | custom |
 | Banner | radius 9, soft tinted background, leading SF Symbol, trailing small button | custom |
 | Empty state | 52pt rounded glyph tile, 15 semibold title, one 13 secondary line, optional buttons | `ContentUnavailableView` with custom actions |

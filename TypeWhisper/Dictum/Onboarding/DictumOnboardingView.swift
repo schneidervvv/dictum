@@ -168,7 +168,7 @@ struct DictumOnboardingView: View {
             title("Getting the speech model ready")
             text("Qwen3-ASR recognizes Chinese and English on this Mac, no internet needed.").foregroundStyle(.secondary).multilineTextAlignment(.center)
             VStack(alignment: .leading, spacing: 14) {
-                Label("Qwen3-ASR 1.7B", systemImage: "waveform")
+                Label { Text(verbatim: "Qwen3-ASR 1.7B") } icon: { ProviderLogoTile(asset: ProviderLogo.asset(providerId: "qwen3"), size: 22) }
                 if !modelSize.isEmpty { Text(verbatim: modelSize).font(.caption).foregroundStyle(.secondary) }
                 if models.isModelReady { text("Ready").foregroundStyle(DictumTheme.success) }
                 else { ProgressView(value: progress); if let progress { Text(progress, format: .percent.precision(.fractionLength(0))) } }
