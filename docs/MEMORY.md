@@ -8,6 +8,8 @@
 
 ## 已交付
 
+* 2026-11-07 按 PR28→PR29→PR30 通过普通 merge 整合引导、供应商标志和设置修改，并包含已合并 PR28 的 main `798a0e0e`。语音页展开密钥行使用 `inset + 62`，更多本机模型行同时显示图标与速度，元素间距为 12 pt，折叠入口左侧缩进为 76 pt。整合源码 `cd4bb605` 的 `scripts/dictum-verify.sh all` 返回 0：Xcode 3375 项、3369 通过、6 跳过；SDK 711 项、709 通过、2 跳过；本地化 2427 处调用缺失 0 键；Release 构建及严格签名检查通过。PR29 的 10 项引导与标志定向测试及 SDK 全量测试通过。整合版尚未启动实机界面，最终布局、引导处理中取消与 Qwen 听写交由 Terra 验收；本轮未操作模型下载或现有模型文件，PR29/30 保持未合并。记录：`/tmp/dictum-integration-ready.md`、`/tmp/dictum-integration-evidence/`。
+
 * 2026-11-06 WhisperKit 速度采样消费逻辑的定向验证通过：`scripts/dictum-verify.sh test -only-testing:TypeWhisperTests/WhisperKitPluginLifecycleTests` 返回 0，Xcode 46 项全部通过，SDK 711 项、709 通过、2 跳过。复用同一进度对象的测试确认旧回调保持过期时间，后续同值的新采样仍可更新速度；该测试在修改前失败。日志：`/tmp/dictum-speed-reuse-before.log`、`/tmp/dictum-speed-reuse-before-xcode.log`、`/tmp/dictum-speed-reuse-after.log`。本轮没有启动模型下载，未重新运行完整 Xcode 套件或 Release 构建。
 
 * 2026-11-06 语音识别页通过 `speechDownloadDetails` 显示 Qwen3 和 WhisperKit 的实测下载速度。WhisperKit 每写完 10 MB 提供一次字节每秒采样，每次采样读取后清空进度对象中的值；保留时间取 3 秒与采样间隔 1.5 倍中较大者，重复进度回调保持原过期时间。速度仅在下载状态显示，结束、错误、卸载及新任务开始时清空，旧任务回调按任务编号隔离；没有字节总量时只提供速度。相关单元测试覆盖过期、无效数值、状态清理及旧任务隔离。源码提交 `c522ba53` 完整验证返回 0：Xcode 3364 项、3358 通过、6 跳过；SDK 711 项、709 通过、2 跳过；Release 构建通过。此前实机已观察 Qwen3 速度与取消后清空、WhisperKit Tiny 速度与完成后清空；WhisperKit 取消和网络错误后的实机清理尚未验证，后续按核心记忆中的模型测试规则执行。记录：`/tmp/dictum-onboarding-logos-final-verification.md`、`/tmp/dictum-settings-download-dock.md`、`/tmp/dictum-whisper-completion-dock.md`。
