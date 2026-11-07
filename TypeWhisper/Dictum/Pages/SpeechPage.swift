@@ -19,6 +19,7 @@ private struct SpeechSettingsForm: View {
     @State private var key = ""
     @State private var failure: String?
     @State private var moreLocal = false
+    @State private var moreCloud = false
     @State private var checkingKey = false
     @State private var checkedCredentials: [String: SpeechCredentialCheck.Result] = [:]
 
@@ -77,21 +78,40 @@ private struct SpeechSettingsForm: View {
                         if localEngines.contains(where: { $0.providerId != "qwen3" }) {
                             DisclosureGroup(isExpanded: $moreLocal) {
                                 ForEach(localEngines.filter { $0.providerId != "qwen3" }, id: \.providerId) { engine in
-                                    HStack {
+                                    HStack(spacing: 12) {
                                         radio(engine) { models.selectProvider(engine.providerId) }
                                         logo(engine)
                                         Text(verbatim: engine.providerDisplayName)
                                         Spacer()
+                                        if let speed = SpeechDownloadProgress(engine: engine)?.speedText {
+                                            Text(verbatim: speed).font(.system(size: 11)).lineLimit(1)
+                                                .foregroundStyle(DictumTheme.textTertiary)
+                                        }
                                     }
                                     plugins.loadedTranscriptionPlugin(for: engine.providerId)?.instance.settingsView
                                 }
                             } label: { Text("More local models", tableName: "DictumSpeech") }
-                            .padding(.leading, 42).padding(.trailing, 14).padding(.vertical, 8)
+                            .padding(.leading, 76).padding(.trailing, 14).padding(.vertical, 8)
                         }
                     }
                     GroupedFormSection(title: "Cloud", footer: "With cloud recognition, audio is sent to the provider you choose.", tableName: "DictumSpeech") {
-                        ForEach(cloudEngines, id: \.providerId) { engine in
-                            cloudRow(engine)
+                        let configured = cloudEngines.filter(\.isConfigured)
+                        let unconfigured = cloudEngines.filter { !$0.isConfigured }
+                        ForEach(configured, id: \.providerId) { engine in
+                            cloudRow(engine, separated: engine.providerId != configured.first?.providerId)
+                        }
+                        if !unconfigured.isEmpty {
+                            DisclosureGroup(isExpanded: $moreCloud) {
+                                ForEach(unconfigured, id: \.providerId) { engine in
+                                    cloudRow(engine, separated: engine.providerId != unconfigured.first?.providerId, inset: 0)
+                                }
+                            } label: {
+                                Text(String(localized: "Providers not set up (\(unconfigured.count))", table: "DictumSpeech"))
+                            }
+                            .padding(.horizontal, 14).padding(.vertical, 8)
+                            .overlay(alignment: .top) {
+                                if !configured.isEmpty { DictumTheme.separator.frame(height: 0.5).padding(.horizontal, 14) }
+                            }
                         }
                     }
                     if !network.isOnline {
@@ -174,11 +194,13 @@ private struct SpeechSettingsForm: View {
                 ProgressView(value: activity.progress).progressViewStyle(.linear).tint(DictumTheme.accent)
                 if let progress = activity.progress {
                     let details = SpeechDownloadProgress(engine: engine)
-                    Text(verbatim: progress.formatted(.percent.precision(.fractionLength(0))) + (details.map { " · " + $0.byteCounts } ?? ""))
+                    Text(verbatim: progress.formatted(.percent.precision(.fractionLength(0))) + (details?.byteCounts.map { " · " + $0 } ?? ""))
                         .font(.system(size: 11)).lineLimit(1)
-                    if let seconds = details?.remainingSeconds, seconds.isFinite {
-                        Text(String(localized: "About \(max(1, Int(ceil(seconds / 60)))) min", table: "DictumSpeech"))
-                            .font(.system(size: 11)).foregroundStyle(DictumTheme.textTertiary)
+                    let remaining = details?.remainingSeconds.flatMap { $0.isFinite
+                        ? String(localized: "About \(max(1, Int(ceil($0 / 60)))) min", table: "DictumSpeech") : nil }
+                    let timing = [details?.speedText, remaining].compactMap { $0 }.joined(separator: " · ")
+                    if !timing.isEmpty {
+                        Text(verbatim: timing).font(.system(size: 11)).lineLimit(1).foregroundStyle(DictumTheme.textTertiary)
                     }
                 } else { Text("Preparing model", tableName: "DictumSpeech").font(.system(size: 11)) }
             }.frame(width: 150)
@@ -205,9 +227,9 @@ private struct SpeechSettingsForm: View {
         }
     }
 
-    private func cloudRow(_ engine: any TranscriptionEnginePlugin) -> some View {
+    private func cloudRow(_ engine: any TranscriptionEnginePlugin, separated: Bool, inset: CGFloat = 14) -> some View {
         VStack(spacing: 0) {
-            GroupedFormRow(separated: cloudEngines.first?.providerId != engine.providerId) {
+            GroupedFormRow(separated: separated, horizontalInset: inset) {
                 radio(engine) { selectCloud(engine) }
                 logo(engine)
                 Button { selectCloud(engine) } label: {
@@ -222,13 +244,13 @@ private struct SpeechSettingsForm: View {
             }.padding(.vertical, 7)
             if expandedProvider == engine.providerId {
                 if let plugin = plugins.loadedTranscriptionPlugin(for: engine.providerId), plugin.id == "com.typewhisper.openai-compatible" {
-                    plugin.instance.settingsView.padding(14)
+                    plugin.instance.settingsView.padding(.horizontal, inset).padding(.vertical, 14)
                 } else {
                     HStack {
                         SecureField(text: $key) { Text(String(localized: "Paste \(engine.providerDisplayName) API key", table: "DictumSpeech")) }.textFieldStyle(.roundedBorder)
                         Button { saveKey(engine) } label: { Text("Test and Use", tableName: "DictumSpeech") }
                             .disabled(key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    }.padding(.leading, 76).padding(.trailing, 14).padding(.bottom, 12)
+                    }.padding(.leading, inset + 62).padding(.trailing, inset).padding(.bottom, 12)
                 }
             }
         }.opacity(network.isOnline ? 1 : 0.45).disabled(!network.isOnline)

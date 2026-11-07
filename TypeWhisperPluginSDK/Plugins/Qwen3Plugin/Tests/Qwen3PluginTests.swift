@@ -193,6 +193,25 @@ final class Qwen3PluginTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(status.remainingSeconds), 4, accuracy: 0.01)
     }
 
+    func testDownloadSpeedFollowsRecentBytesAndDisappearsWhenTransferStalls() throws {
+        let progress = Progress(totalUnitCount: 100_000_000)
+        let start = Date(timeIntervalSince1970: 0)
+        var status = Qwen3Plugin.DownloadStatus()
+        progress.completedUnitCount = 10_000_000
+        status.update(progress, at: start)
+        XCTAssertNil(status.bytesPerSecond(at: start))
+        progress.completedUnitCount = 16_400_000
+        status.update(progress, at: start.addingTimeInterval(2))
+        XCTAssertEqual(try XCTUnwrap(status.bytesPerSecond(at: start.addingTimeInterval(2))), 3_200_000, accuracy: 1)
+        XCTAssertNil(status.bytesPerSecond(at: start.addingTimeInterval(6)))
+        progress.completedUnitCount = 40_000_000
+        status.update(progress, at: start.addingTimeInterval(20))
+        XCTAssertNil(status.bytesPerSecond(at: start.addingTimeInterval(20)))
+        progress.completedUnitCount = 50_000_000
+        status.update(progress, at: start.addingTimeInterval(22))
+        XCTAssertEqual(try XCTUnwrap(status.bytesPerSecond(at: start.addingTimeInterval(22))), 5_000_000, accuracy: 1)
+    }
+
     func testFrenchTrailingOuiArtifactIsRemovedOnlyAfterSentencePunctuation() {
         XCTAssertEqual(
             QwenTranscriptGuard.removingLikelyTrailingArtifact(

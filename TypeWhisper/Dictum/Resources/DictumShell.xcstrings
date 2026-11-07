@@ -3,6 +3,7 @@
   "strings" : {
     "Press new shortcut" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Press new shortcut" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "按下新快捷键" } } } },
     "Settings" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Settings" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "设置" } } } },
+    "Back" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Back" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "返回" } } } },
     "Settings…" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Settings…" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "设置…" } } } },
     "Open dictum" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Open dictum" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开 dictum" } } } },
     "Ready" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Ready" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "就绪" } } } },

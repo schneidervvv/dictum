@@ -4,8 +4,9 @@ import TypeWhisperPluginSDK
 
 private func completeApplicationRelaunch(_ application: NSRunningApplication?, _ error: Error?) {
     guard application != nil, error == nil else { return }
-    Task { @MainActor in
-        NSApplication.shared.terminate(nil)
+    // 退出会进入 AppKit 嵌套循环，先释放主执行器，让退出清理任务能够执行。
+    RunLoop.main.perform(inModes: [.default]) {
+        MainActor.assumeIsolated { NSApplication.shared.terminate(nil) }
     }
 }
 

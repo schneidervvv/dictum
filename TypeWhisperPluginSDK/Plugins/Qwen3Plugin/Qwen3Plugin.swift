@@ -50,6 +50,14 @@ final class Qwen3Plugin: NSObject, TranscriptionEnginePlugin, TranscriptionModel
                   last.bytes > first.bytes, total > completed else { return nil }
             return last.date.timeIntervalSince(first.date) * Double(total - completed) / Double(last.bytes - first.bytes)
         }
+
+        /// 最近 10 秒内的平均下载速度；停滞超过 3 秒后不再给出，避免界面停在过时的数值上。
+        func bytesPerSecond(at now: Date = .now) -> Double? {
+            guard let first = samples.first, let last = samples.last,
+                  last.date.timeIntervalSince(first.date) >= 2,
+                  last.bytes > first.bytes, now.timeIntervalSince(last.date) <= 3 else { return nil }
+            return Double(last.bytes - first.bytes) / last.date.timeIntervalSince(first.date)
+        }
     }
     private let downloadStatus = OSAllocatedUnfairLock(initialState: DownloadStatus())
     fileprivate var downloadProgress: Double? {
@@ -61,6 +69,7 @@ final class Qwen3Plugin: NSObject, TranscriptionEnginePlugin, TranscriptionModel
         let status = downloadStatus.withLock { $0 }
         var details: [String: Any] = ["completedBytes": status.completed, "totalBytes": status.total]
         if let remaining = status.remainingSeconds { details["remainingSeconds"] = remaining }
+        if let speed = status.bytesPerSecond() { details["bytesPerSecond"] = speed }
         return details as NSDictionary
     }
 

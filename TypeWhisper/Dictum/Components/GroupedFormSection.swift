@@ -31,14 +31,16 @@ struct GroupedFormSection<Content: View>: View {
 
 struct GroupedFormRow<Content: View>: View {
     var separated = false
+    /// 行左右两侧的内边距；放进已带水平内边距的容器（如折叠栏）时传 0，避免重复缩进。
+    var horizontalInset: CGFloat = 14
     @ViewBuilder let content: () -> Content
 
     var body: some View {
         HStack(spacing: 12, content: content)
             .frame(maxWidth: .infinity, minHeight: 44)
-            .padding(.horizontal, 14)
+            .padding(.horizontal, horizontalInset)
             .overlay(alignment: .top) {
-                if separated { DictumTheme.separator.frame(height: 0.5).padding(.horizontal, 14) }
+                if separated { DictumTheme.separator.frame(height: 0.5).padding(.horizontal, horizontalInset) }
             }
     }
 }

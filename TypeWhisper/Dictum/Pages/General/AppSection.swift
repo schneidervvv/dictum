@@ -2,7 +2,7 @@ import SwiftUI
 
 struct AppSection: View {
     @ObservedObject private var launchAtLogin = ServiceContainer.shared.launchAtLoginController
-    @AppStorage(UserDefaultsKeys.dictumShowInDock) private var showInDock = false
+    @AppStorage(UserDefaultsKeys.dictumShowInDock) private var showInDock = true
     @State private var language = UserDefaults.standard.string(forKey: UserDefaultsKeys.preferredAppLanguage) ?? "system"
     @State private var needsRestart = false
 

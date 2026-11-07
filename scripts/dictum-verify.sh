@@ -17,7 +17,26 @@ keychain="$HOME/Library/Keychains/login.keychain-db"
 mkdir -p "$receipts"
 
 sign_app() {
-  local identity
+  local identity binary load_commands
+  local package_frameworks="$derived_data/Build/Products/$configuration/PackageFrameworks"
+  # 安装包只使用包内框架，移除 Xcode 为开发环境添加的绝对搜索路径。
+  while IFS= read -r -d '' binary; do
+    case "$(file -b "$binary")" in
+      Mach-O*)
+        load_commands="$(otool -l "$binary")"
+        if awk -v path="$package_frameworks" '
+          $1 == "cmd" { rpath = ($2 == "LC_RPATH") }
+          rpath && $1 == "path" {
+            sub(/^[[:space:]]*path /, ""); sub(/ \(offset [0-9]+\)$/, "")
+            if ($0 == path) found = 1
+          }
+          END { exit !found }
+        ' <<< "$load_commands"; then
+          install_name_tool -delete_rpath "$package_frameworks" "$binary"
+        fi
+        ;;
+    esac
+  done < <(find "$app" -type f -print0)
   identity="$(security find-identity -p codesigning "$keychain" |
     awk 'index($0, "\"dictum Local Signing\"") && !found++ { print $2 }')"
   if [[ "${DICTUM_SIGNING_AUTHORIZATION_PENDING:-0}" == 1 ]]; then

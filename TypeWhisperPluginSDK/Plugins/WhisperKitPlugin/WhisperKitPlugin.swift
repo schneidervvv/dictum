@@ -37,6 +37,7 @@ final class WhisperKitPlugin: NSObject, SourceProgressTranscriptionEnginePlugin,
     fileprivate var _hfToken: String?
     fileprivate var modelState: WhisperModelState = .notLoaded
     fileprivate var downloadProgress: Double = 0
+    private let downloadSpeed = OSAllocatedUnfairLock(initialState: WhisperKitDownloadSpeed())
     private var modelLoadGeneration = 0
     private let modelUseCondition = NSCondition()
     private var activeModelUseCount = 0
@@ -154,6 +155,23 @@ final class WhisperKitPlugin: NSObject, SourceProgressTranscriptionEnginePlugin,
 
     private func isCurrentModelLoad(_ generation: Int) -> Bool {
         generation == modelLoadGeneration
+    }
+
+    /// 只有当前这次加载的下载回调才记录速度，已取消的下载还在收尾时不会写入新下载的数值。
+    func recordDownloadSpeed(_ progress: Progress, generation: Int) {
+        guard isCurrentModelLoad(generation) else { return }
+        downloadSpeed.withLock { $0.record(progress) }
+    }
+
+    private func resetDownloadSpeed() {
+        downloadSpeed.withLock { $0 = WhisperKitDownloadSpeed() }
+    }
+
+    /// WhisperKit 的下载进度以文件数为单位，没有字节总量，只提供下载器实测的字节每秒。
+    @objc var speechDownloadDetails: NSDictionary {
+        guard case .downloading = modelState,
+              let speed = downloadSpeed.withLock({ $0.bytesPerSecond() }) else { return [:] }
+        return ["bytesPerSecond": speed]
     }
 
     private func isModelLoadInProgress(for modelId: String) -> Bool {
@@ -719,6 +737,8 @@ final class WhisperKitPlugin: NSObject, SourceProgressTranscriptionEnginePlugin,
                 downloadProgress = 0.05
 
                 var lastProgress = 0.0
+                resetDownloadSpeed()
+                defer { if isCurrentModelLoad(loadGeneration) { resetDownloadSpeed() } }
                 try WhisperKitNetworkAccessPolicy.ensureAccessIsAllowed()
                 downloadSpaceReservation = try await PluginDownloadDiskSpace.reserveHuggingFaceDownload(
                     repositoryID: Self.modelRepo,
@@ -735,6 +755,7 @@ final class WhisperKitPlugin: NSObject, SourceProgressTranscriptionEnginePlugin,
                     downloadBase: downloadBase,
                     token: _hfToken
                 ) { progress in
+                    self.recordDownloadSpeed(progress, generation: loadGeneration)
                     let fraction = progress.fractionCompleted
                     let mapped = 0.05 + fraction * 0.75
                     guard mapped - lastProgress >= 0.01 else { return }
@@ -853,6 +874,7 @@ final class WhisperKitPlugin: NSObject, SourceProgressTranscriptionEnginePlugin,
         loadingModelId = nil
         modelState = .notLoaded
         downloadProgress = 0
+        resetDownloadSpeed()
         if clearPersistence {
             host?.setUserDefault(nil, forKey: "loadedModel")
         }
@@ -1296,6 +1318,33 @@ struct WhisperModelDef: Identifiable {
         default:
             return false
         }
+    }
+}
+
+/// Hub 下载器每写完 10 MB 就把这一段的实测字节每秒放进 `Progress.userInfo[.throughputKey]`，
+/// 小文件和文件之间没有新数值。数值保留到下一段预计到达前，超时后不再给出。
+struct WhisperKitDownloadSpeed {
+    private static let minimumHold: TimeInterval = 3
+    private var anchor: Date
+    private var speed: Double?
+    private var hold = WhisperKitDownloadSpeed.minimumHold
+
+    init(startedAt: Date = .now) {
+        anchor = startedAt
+    }
+
+    mutating func record(_ progress: Progress, at date: Date = .now) {
+        guard let value = progress.userInfo[.throughputKey] as? Double, value.isFinite, value > 0 else { return }
+        // Hub 复用进度对象，每个实测采样只消费一次。
+        progress.setUserInfoObject(nil, forKey: .throughputKey)
+        hold = max(Self.minimumHold, date.timeIntervalSince(anchor) * 1.5)
+        anchor = date
+        speed = value
+    }
+
+    func bytesPerSecond(at date: Date = .now) -> Double? {
+        guard let speed, date.timeIntervalSince(anchor) <= hold else { return nil }
+        return speed
     }
 }
 
